@@ -1,8 +1,11 @@
 """Lance, reenvio, prorrogacao e sala conforme docs/contratos.md (RF09-RF12, RF14-RF16)."""
 
+from datetime import timedelta
 from uuid import uuid4
 
 from tests.apoio import PRECISA_BANCO, TesteLeilao  # primeiro: define DATABASE_URL ficticia
+
+from app.tempo import iso_utc  # noqa: E402
 
 
 @PRECISA_BANCO
@@ -114,6 +117,9 @@ class LancesTest(TesteLeilao):
                                       "WHERE id=:id", id=self.leilao).one()
         self.assertGreater(fim, orig)
         self.assertEqual(n, 1)
+        s = self.sala(self.bruno).json()
+        self.assertEqual(s["hard_end"], iso_utc(orig + timedelta(minutes=10)))
+        self.assertFalse(s["prorrogacao_esgotada"])
         self.banco.sql("""UPDATE leiloes SET inicio = clock_timestamp() - interval '20 minutes',
                           termino_original = clock_timestamp() - interval '9 minutes 50 seconds',
                           termino_vigente  = clock_timestamp() + interval '10 seconds' WHERE id=:id""",
@@ -121,6 +127,9 @@ class LancesTest(TesteLeilao):
         self.assertEqual(self.lance(self.carla, "200.00").status_code, 201)
         n2 = self.banco.sql("SELECT prorrogacoes FROM leiloes WHERE id=:id", id=self.leilao).scalar_one()
         self.assertEqual(n2, 1)  # no teto: nao prorroga mais
+        s = self.sala(self.carla).json()
+        self.assertTrue(s["prorrogacao_esgotada"])  # aviso persistente na sala
+        self.assertEqual(s["termino_vigente"], s["hard_end"])
 
     def test_sala_resultado_vendido(self):
         self.preparar()

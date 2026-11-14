@@ -8,7 +8,7 @@ import unittest
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost/unused")
 
 from app.config import Configuracoes  # noqa: E402
-from app.regras import impedimento, incremento, lance_minimo, novo_termino  # noqa: E402
+from app.regras import hard_end, impedimento, incremento, lance_minimo, novo_termino, prorrogacao_esgotada  # noqa: E402
 
 CFG = Configuracoes(_env_file=None)
 T0 = datetime(2026, 11, 14, 18, 0, tzinfo=timezone.utc)
@@ -54,6 +54,16 @@ class RegrasTest(unittest.TestCase):
         self.assertEqual(novo_termino(instante, vigente, T0, CFG), T0 + timedelta(minutes=10))
         no_teto = T0 + timedelta(minutes=10)
         self.assertIsNone(novo_termino(no_teto - timedelta(seconds=1), no_teto, T0, CFG))
+
+    def test_exemplo_do_documento_lance_aos_9_03_leva_a_10_03(self):
+        vigente = T0 + timedelta(minutes=10)
+        instante = T0 + timedelta(minutes=9, seconds=3)
+        self.assertEqual(novo_termino(instante, vigente, vigente, CFG), T0 + timedelta(minutes=10, seconds=3))
+
+    def test_hard_end_e_original_mais_10_min(self):
+        self.assertEqual(hard_end(T0, CFG), T0 + timedelta(minutes=10))
+        self.assertFalse(prorrogacao_esgotada(T0 + timedelta(minutes=9, seconds=59), T0, CFG))
+        self.assertTrue(prorrogacao_esgotada(T0 + timedelta(minutes=10), T0, CFG))
 
     def test_impedimentos(self):
         fim = T0 + timedelta(minutes=1)

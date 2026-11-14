@@ -43,6 +43,17 @@ def lance_minimo(preco_inicial: Decimal, preco_atual: Decimal, tem_lider: bool) 
     return preco_atual + incremento(preco_atual)
 
 
+def hard_end(termino_original: datetime, cfg: Configuracoes) -> datetime:
+    """RF15: teto absoluto do termino (termino original + AUCTION_EXTENSION_MAX_SECONDS,
+    padrao 10 min). Nenhuma prorrogacao passa daqui."""
+    return termino_original + timedelta(seconds=cfg.prorrogacao_maxima_segundos)
+
+
+def prorrogacao_esgotada(termino_vigente: datetime, termino_original: datetime, cfg: Configuracoes) -> bool:
+    """True quando o termino vigente ja chegou ao hard end: o encerramento e definitivo."""
+    return termino_vigente >= hard_end(termino_original, cfg)
+
+
 def novo_termino(instante: datetime, termino_vigente: datetime, termino_original: datetime,
                  cfg: Configuracoes) -> datetime | None:
     """RF15. Devolve o novo termino se o lance aceito prorroga o leilao; senao None.
@@ -53,7 +64,7 @@ def novo_termino(instante: datetime, termino_vigente: datetime, termino_original
     """
     if termino_vigente - instante >= timedelta(seconds=cfg.prorrogacao_janela_segundos):
         return None
-    teto = termino_original + timedelta(seconds=cfg.prorrogacao_maxima_segundos)
+    teto = hard_end(termino_original, cfg)
     candidato = min(instante + timedelta(seconds=cfg.prorrogacao_segundos), teto)
     return candidato if candidato > termino_vigente else None
 

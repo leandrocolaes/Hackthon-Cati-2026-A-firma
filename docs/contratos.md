@@ -75,11 +75,16 @@ inteira: DATABASE_URL e configuracao interna nao pertencem a resposta publica.
 {
   "id":1,"versao":1,"estado":"em_andamento","server_time":"2026-11-14T18:00:30Z",
   "inicio":"2026-11-14T18:00:00Z","termino_original":"2026-11-14T18:03:00Z","termino_vigente":"2026-11-14T18:03:00Z",
+  "hard_end":"2026-11-14T18:13:00Z","prorrogacao_esgotada":false,
   "preco_atual":"10.00","lance_minimo":"10.00","lider":null,
   "total_lances":0,"ultimos_lances":[],"resultado":null,
   "meu_participante_id":7,"sou_comitente":false,"pode_dar_lance":true,"motivo_impedimento":null
 }
 ```
+
+`hard_end` (fase 2, RF15): termino_original + 10 min, teto de qualquer prorrogacao.
+`prorrogacao_esgotada`: true quando termino_vigente ja chegou ao hard_end; a sala mostra
+aviso persistente de que o encerramento e definitivo naquele horario.
 
 `sou_comitente` (acrescentado com o frontend da sala): indica se quem pede e o comitente,
 para a tela mostrar o cancelamento so a ele. O servidor continua decidindo (RF08).

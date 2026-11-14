@@ -11,7 +11,7 @@ from app import dinheiro
 from app.config import Configuracoes
 from app.erros import ErroApi
 from app.models import Lance, Leilao, Participante
-from app.regras import impedimento, lance_minimo
+from app.regras import hard_end, impedimento, lance_minimo, prorrogacao_esgotada
 from app.servicos.leiloes import nao_encontrado
 from app.servicos.participantes import apelido
 from app.tempo import agora, iso_utc
@@ -55,6 +55,9 @@ def snapshot(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int) -
         "id": leilao.id, "versao": leilao.versao, "estado": leilao.estado, "server_time": iso_utc(instante),
         "inicio": iso_utc(leilao.inicio), "termino_original": iso_utc(leilao.termino_original),
         "termino_vigente": iso_utc(leilao.termino_vigente),
+        # RF15 (fase 2): a sala mostra ate quando pode prorrogar e avisa quando chegou ao teto.
+        "hard_end": iso_utc(hard_end(leilao.termino_original, cfg)),
+        "prorrogacao_esgotada": prorrogacao_esgotada(leilao.termino_vigente, leilao.termino_original, cfg),
         "preco_atual": dinheiro.texto(leilao.preco_atual),
         "lance_minimo": dinheiro.texto(lance_minimo(leilao.preco_inicial, leilao.preco_atual,
                                                     leilao.lider_id is not None)),
