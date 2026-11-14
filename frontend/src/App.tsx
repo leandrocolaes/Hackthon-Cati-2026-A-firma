@@ -8,6 +8,7 @@ import { Rodape } from "./components/Rodape";
 import { Home } from "./pages/Home";
 import { LeilaoDetalhe } from "./pages/LeilaoDetalhe";
 import { MeusLeiloes } from "./pages/MeusLeiloes";
+import { MinhasParticipacoes } from "./pages/MinhasParticipacoes";
 import { NaoEncontrado } from "./pages/NaoEncontrado";
 import { PerfilComitente } from "./pages/PerfilComitente";
 
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/anunciar" element={<Anunciar />} />
             <Route path="/leiloes/:id/editar" element={<Anunciar />} />
             <Route path="/meus-leiloes" element={<MeusLeiloes />} />
+            <Route path="/minhas-participacoes" element={<MinhasParticipacoes />} />
             <Route path="/comitentes/:ref" element={<PerfilComitente />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Routes>
