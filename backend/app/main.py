@@ -7,21 +7,35 @@
 Todas as rotas começam com /api porque é assim que o Nginx sabe
 o que mandar para cá (o resto é o site React).
 """
+import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app import erros
+from app import erros, tempo_real
 from app.db import get_db
-from app.routers import auth, lances, leiloes
+from app.routers import auth, lances, leiloes, sala_ws
 
-app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
+
+@asynccontextmanager
+async def ciclo_de_vida(app: FastAPI):
+    """Ao subir: inicia a atualizacao das salas (F12). Ao descer: para."""
+    parar = asyncio.Event()
+    tarefa = asyncio.create_task(tempo_real.acompanhar(parar))
+    yield
+    parar.set()
+    await tarefa
+
+
+app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=ciclo_de_vida)
 erros.registrar(app)
 app.include_router(auth.router)
 app.include_router(leiloes.router)
 app.include_router(lances.router)
+app.include_router(sala_ws.router)
 
 
 @app.get("/api/health")
