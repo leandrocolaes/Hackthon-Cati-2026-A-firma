@@ -73,6 +73,30 @@ verificação de outro computador com a URL pública:
 `http://200.18.99.113:<porta pública da equipe>`. O script não verifica migrações;
 confirme também `alembic current` e `alembic check` conforme a seção abaixo.
 
+### Dados de demonstração (RNF04)
+
+Com o sistema no ar e as migrações aplicadas:
+
+```bash
+docker compose exec backend python -m app.seed
+```
+
+Cria (se ainda não existirem) as contas abaixo, todas com a senha da variável
+`DEMO_PASSWORD` do `.env` (padrão `demo1234`), e um lote novo de leilões em todos
+os estados: um agendado que abre em 2 minutos, outro em 10, um em andamento com
+lances, um vendido, um encerrado sem lances e um cancelado. Rodar de novo não
+duplica as contas, só cria outro lote; rodem pouco antes da demo.
+
+| Conta | Papel |
+|---|---|
+| `comitente@demo.local` | comitente dos leilões de demonstração |
+| `comprador1@demo.local` | comprador (participa dos leilões com lances) |
+| `comprador2@demo.local` | comprador |
+| `comprador3@demo.local` | comprador |
+
+As fotos desses leilões são URLs públicas de exemplo; para demonstrar o envio de
+fotos à nuvem (RF07), criem um leilão pela tela.
+
 ### Desenvolvendo (com recarga automática)
 
 Mais rápido para programar: só o banco fica no Docker; backend e frontend rodam na sua máquina e recarregam ao salvar.
