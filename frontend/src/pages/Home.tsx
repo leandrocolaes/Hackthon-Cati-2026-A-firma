@@ -10,9 +10,21 @@ const POR_PAGINA = 20;
 // DECISAO: a lista se atualiza sozinha a cada 15 s (estado e preço mudam).
 const ATUALIZAR_MS = 15_000;
 
+/** Busca sem diferenciar maiúsculas nem acentos ("eletronicos" encontra "Eletrônicos"). */
+function normalizarBusca(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export function Home() {
   const agora = useRelogio();
   const [pagina, setPagina] = useState(1);
+  const [busca, setBusca] = useState("");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("todas");
+  const [estadoFiltro, setEstadoFiltro] = useState("todos");
 
   const [leiloes, setLeiloes] = useState<Leilao[]>([]);
   const [erro, setErro] = useState("");
@@ -33,13 +45,53 @@ export function Home() {
   const agendados = catalogo.filter((leilao) => leilao.agendado).length;
   const categorias = new Set(catalogo.map((leilao) => leilao.item.categoria)).size;
 
-  const totalPaginas = Math.max(1, Math.ceil(catalogo.length / POR_PAGINA));
+  const categoriasDisponiveis = useMemo(
+    () => [...new Set(catalogo.map((leilao) => leilao.item.categoria))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [catalogo],
+  );
+
+  const filtrados = useMemo(() => {
+    const termo = normalizarBusca(busca);
+    return catalogo.filter((leilao) => {
+      const combinaBusca =
+        termo === "" ||
+        normalizarBusca(leilao.item.nome).includes(termo) ||
+        normalizarBusca(leilao.item.categoria).includes(termo);
+      const combinaCategoria =
+        categoriaFiltro === "todas" || leilao.item.categoria === categoriaFiltro;
+      const combinaEstado =
+        estadoFiltro === "todos" ||
+        (estadoFiltro === "em_andamento" ? leilao.emAndamento : leilao.agendado);
+      return combinaBusca && combinaCategoria && combinaEstado;
+    });
+  }, [catalogo, busca, categoriaFiltro, estadoFiltro]);
+
+  const temFiltro =
+    busca.trim() !== "" || categoriaFiltro !== "todas" || estadoFiltro !== "todos";
+
+  // Qualquer mudança de filtro volta para a primeira página.
+  useEffect(() => {
+    setPagina(1);
+  }, [busca, categoriaFiltro, estadoFiltro]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const inicio = (pagina - 1) * POR_PAGINA;
-  const visiveis = catalogo.slice(inicio, inicio + POR_PAGINA);
+  const visiveis = filtrados.slice(inicio, inicio + POR_PAGINA);
+
+  // A atualização automática pode reduzir a lista enquanto estamos numa página alta.
+  useEffect(() => {
+    setPagina((atual) => Math.min(atual, totalPaginas));
+  }, [totalPaginas]);
 
   function mudarPagina(novaPagina: number) {
     setPagina(Math.min(Math.max(novaPagina, 1), totalPaginas));
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function limparFiltros() {
+    setBusca("");
+    setCategoriaFiltro("todas");
+    setEstadoFiltro("todos");
   }
 
   return (
@@ -95,11 +147,64 @@ export function Home() {
           <p className="secao__descricao">
             {catalogo.length === 0
               ? "Nenhum leilão disponível no momento."
-              : `Mostrando ${inicio + 1}–${Math.min(
-                  inicio + POR_PAGINA,
-                  catalogo.length,
-                )} de ${catalogo.length} leilões elegíveis.`}
+              : filtrados.length === 0
+                ? "Nenhum leilão corresponde aos filtros."
+                : `Mostrando ${inicio + 1}–${Math.min(
+                    inicio + POR_PAGINA,
+                    filtrados.length,
+                  )} de ${filtrados.length} ${
+                    temFiltro
+                      ? `resultado${filtrados.length === 1 ? "" : "s"}`
+                      : "leilões elegíveis"
+                  }${temFiltro ? ` (de ${catalogo.length})` : ""}.`}
           </p>
+        </div>
+
+        <div className="busca" role="search" aria-label="Buscar e filtrar leilões">
+          <label className="busca__campo busca__campo--texto">
+            <span className="busca__rotulo">Buscar</span>
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Nome do item ou categoria..."
+              autoComplete="off"
+            />
+          </label>
+
+          <label className="busca__campo">
+            <span className="busca__rotulo">Categoria</span>
+            <select
+              value={categoriaFiltro}
+              onChange={(e) => setCategoriaFiltro(e.target.value)}
+            >
+              <option value="todas">Todas as categorias</option>
+              {categoriasDisponiveis.map((categoria) => (
+                <option key={categoria} value={categoria}>{categoria}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="busca__campo">
+            <span className="busca__rotulo">Estado</span>
+            <select
+              value={estadoFiltro}
+              onChange={(e) => setEstadoFiltro(e.target.value)}
+            >
+              <option value="todos">Todos os estados</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="agendado">Agendados</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className="busca__limpar"
+            onClick={limparFiltros}
+            disabled={!temFiltro}
+          >
+            Limpar filtros
+          </button>
         </div>
 
         {erro && (
@@ -111,7 +216,16 @@ export function Home() {
 
         {visiveis.length === 0 ? (
           <div className="estado-vazio">
-            <p>Não há leilões agendados ou em andamento para exibir.</p>
+            {temFiltro ? (
+              <>
+                <p>Nenhum leilão encontrado com os filtros selecionados.</p>
+                <button type="button" className="botao-link" onClick={limparFiltros}>
+                  Limpar busca e filtros
+                </button>
+              </>
+            ) : (
+              <p>Não há leilões agendados ou em andamento para exibir.</p>
+            )}
           </div>
         ) : (
           <div className="grade">
