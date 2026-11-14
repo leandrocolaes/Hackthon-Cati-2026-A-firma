@@ -31,6 +31,8 @@ class Participante(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # RF26: quando recebeu o (unico) aviso de lance superado neste leilao; NULL = nunca.
+    avisado_superado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     leilao: Mapped["Leilao"] = relationship(back_populates="participantes")
     usuario: Mapped["Usuario"] = relationship()

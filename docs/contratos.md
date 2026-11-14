@@ -91,6 +91,12 @@ inteira: DATABASE_URL e configuracao interna nao pertencem a resposta publica.
 `prorrogacao_esgotada`: true quando termino_vigente ja chegou ao hard_end; a sala mostra
 aviso persistente de que o encerramento e definitivo naquele horario.
 
+Aviso de lance superado (RF26): a mensagem WS de um participante pode trazer
+`"aviso":"lance_superado"` junto do snapshot, quando ele era o lider no snapshot
+anterior que recebeu e o novo snapshot confirmado mostra outro lider. No maximo uma vez
+por usuario e leilao (`participantes.avisado_superado_em`); so via WS (quem esta na
+sala naquele momento); nunca para espectador; sem e-mail ou notificacao do navegador.
+
 Snapshot publico do espectador (RF25): os mesmos campos de prazo e preco, mais
 `"espectador":true`, com lider/lances/vencedor so por apelido
 (`{"apelido":"Participante 1"}`, lances `{"apelido","valor","criado_em"}`). Nao tem

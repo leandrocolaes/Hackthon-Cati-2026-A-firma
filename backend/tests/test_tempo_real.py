@@ -163,3 +163,40 @@ class TempoRealTest(TesteLeilao):
             self.assertEqual(self.fechado_com(ws), 4409)
         with self.ws(None, 999999, modo="espectador") as ws:
             self.assertEqual(self.fechado_com(ws), 4404)
+
+    def test_aviso_de_lance_superado_uma_vez_por_usuario_e_leilao(self):
+        """RF26: so quem esta na sala, so apos troca confirmada de lider, uma unica vez."""
+        self.preparar()
+
+        def lance(cliente, valor):
+            r = cliente.post(f"/api/leiloes/{self.leilao}/lances", json={"valor": valor, "chave": str(uuid4())})
+            self.assertEqual(r.status_code, 201, r.text)
+
+        def ate(ws, total):
+            """Mensagens ate o snapshot com `total` lances; devolve os avisos vistos."""
+            avisos, fim = [], time.monotonic() + 6
+            while time.monotonic() < fim:
+                msg = ws.receive_json()
+                if "aviso" in msg:
+                    avisos.append(msg["aviso"])
+                if msg["estado"]["total_lances"] == total:
+                    return avisos
+            self.fail("a atualizacao esperada nao chegou")
+
+        with self.ws(self.bruno, self.leilao) as ws:
+            ws.receive_json()
+            lance(self.carla, "100.00")  # Carla lidera, mas nao esta conectada
+            self.assertEqual(ate(ws, 1), [])
+            lance(self.bruno, "105.00")
+            self.assertEqual(ate(ws, 2), [])  # virou lider: nada a avisar
+            lance(self.carla, "110.00")
+            self.assertEqual(ate(ws, 3), ["lance_superado"])  # Bruno perdeu a lideranca
+            lance(self.bruno, "120.00")
+            self.assertEqual(ate(ws, 4), [])
+            lance(self.carla, "125.00")
+            self.assertEqual(ate(ws, 5), [])  # segunda vez superado: sem novo aviso
+        marcas = dict(self.banco.sql(
+            "SELECT usuario_id, avisado_superado_em IS NOT NULL FROM participantes WHERE leilao_id=:l",
+            l=self.leilao).all())
+        self.assertTrue(marcas[self.bruno.usuario_id])
+        self.assertFalse(marcas[self.carla.usuario_id])  # superada pelo Bruno, mas fora da sala

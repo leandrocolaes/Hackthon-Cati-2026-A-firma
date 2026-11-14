@@ -14,6 +14,12 @@ leilao em andamento (senao fecha com 4409), nao cria participante e recebe o sna
 publico (sem dados pessoais) ate o resultado final. Com cookie, o usuario logado que
 escolheu "Assistir" tambem entra assim, sem virar participante.
 
+Aviso de lance superado (RF26): cada conexao de participante lembra se ele era o
+lider no ultimo snapshot que recebeu. Se o snapshot confirmado seguinte mostra outro
+lider, marca participantes.avisado_superado_em (UPDATE ... WHERE ainda NULL) e, so se
+a marca foi feita agora, a mensagem leva "aviso": "lance_superado". Assim cada
+usuario recebe no maximo um aviso por leilao, e so quem esta na sala (WS aberto).
+
 Atraso tipico: ate ~1 s, alem de rede/processamento. Pode agrupar mudancas
 intermediarias: e um "estado atual", nao um log de eventos.
 Expiracao: a sessao e reconferida a cada envio e a cada VERIFICAR_SESSAO_SEGUNDOS;
@@ -26,7 +32,7 @@ import logging
 import time
 
 from fastapi import WebSocket
-from sqlalchemy import exists, select
+from sqlalchemy import exists, select, update
 from starlette.concurrency import run_in_threadpool
 
 from app import db as modulo_db
@@ -64,6 +70,7 @@ class Conexao:
     usuario_id: int | None  # None = espectador (RF25)
     token_hash: str | None
     versao_enviada: int = -1
+    era_lider: bool = False  # RF26: no ultimo snapshot enviado, este participante liderava?
 
     @property
     def espectador(self) -> bool:
@@ -144,6 +151,19 @@ def montar(c: Conexao) -> tuple[int | None, dict | None]:
             return (FECHAR_NAO_ENCONTRADO if e.status == 404 else FECHAR_SEM_PARTICIPACAO), None
 
 
+def marcar_aviso_superado(participante_id: int) -> bool:
+    """RF26: True so na PRIMEIRA vez para este participante (usuario + leilao)."""
+    with _sessao() as db:
+        marcado = db.execute(
+            update(Participante)
+            .where(Participante.id == participante_id, Participante.avisado_superado_em.is_(None))
+            .values(avisado_superado_em=agora(db))
+            .returning(Participante.id)
+        ).scalar_one_or_none()
+        db.commit()
+        return marcado is not None
+
+
 def versoes(ids: list[int]) -> dict[int, int]:
     with _sessao() as db:
         return dict(db.execute(select(Leilao.id, Leilao.versao).where(Leilao.id.in_(ids))).all())
@@ -160,8 +180,16 @@ async def enviar(c: Conexao) -> None:
             return
         if estado["versao"] < c.versao_enviada:
             return
+        mensagem = {"tipo": "estado_leilao", "estado": estado}
+        if not c.espectador:
+            eu = estado["meu_participante_id"]
+            lider = (estado["lider"] or {}).get("participante_id")
+            if c.era_lider and lider is not None and lider != eu:
+                if await run_in_threadpool(marcar_aviso_superado, eu):
+                    mensagem["aviso"] = "lance_superado"
+            c.era_lider = lider == eu
         try:
-            await c.ws.send_json({"tipo": "estado_leilao", "estado": estado})
+            await c.ws.send_json(mensagem)
             c.versao_enviada = estado["versao"]
         except Exception:
             salas.sair(c)  # navegador ja foi embora
