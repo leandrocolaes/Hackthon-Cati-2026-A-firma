@@ -42,8 +42,7 @@ class Configuracoes(BaseSettings):
     nome_item_maximo: int = Field(100, ge=1, le=100, validation_alias="ITEM_NAME_MAX_LENGTH")
     descricao_item_minima: int = Field(10, ge=1, le=2000, validation_alias="ITEM_DESCRIPTION_MIN_LENGTH")
     descricao_item_maxima: int = Field(2000, ge=1, le=2000, validation_alias="ITEM_DESCRIPTION_MAX_LENGTH")
-    # TEMPORARIO: 0 ate o F11 (fotos na nuvem). Voltar para 3 antes da entrega (RF05).
-    fotos_minimas: int = Field(0, ge=0, validation_alias="ITEM_MIN_PHOTOS")
+    fotos_minimas: int = Field(3, ge=0, validation_alias="ITEM_MIN_PHOTOS")
     fotos_maximas: int = Field(10, ge=0, validation_alias="ITEM_MAX_PHOTOS")
     foto_maxima_bytes: int = Field(5242880, gt=0, validation_alias="PHOTO_MAX_BYTES")
     foto_tipos_permitidos: ListaConfigurada = Field(

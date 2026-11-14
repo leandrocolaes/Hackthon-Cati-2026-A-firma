@@ -45,6 +45,12 @@ export const api = {
       body: dados === undefined ? undefined : JSON.stringify(dados),
     }),
   delete: <T>(caminho: string) => pedir<T>(caminho, { method: "DELETE" }),
+  // multipart: o navegador define o Content-Type com o boundary sozinho.
+  enviarArquivo: <T>(caminho: string, campo: string, arquivo: File) => {
+    const corpo = new FormData();
+    corpo.append(campo, arquivo);
+    return pedir<T>(caminho, { method: "POST", body: corpo });
+  },
 };
 
 // Chave única por tentativa de lance (RF12).

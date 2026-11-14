@@ -13,6 +13,7 @@ export function LeilaoDetalhe() {
   const { id } = useParams();
   const agora = useRelogio();
   const [naSala, setNaSala] = useState(false);
+  const [fotoAtual, setFotoAtual] = useState(0);
   const { usuario } = useAuth();
   const navegar = useNavigate();
   const local = useLocation();
@@ -76,13 +77,20 @@ export function LeilaoDetalhe() {
           <FotoLeilao
             nome={leilao.item.nome}
             categoria={leilao.item.categoria}
-            fotos={leilao.item.fotos}
+            fotos={leilao.item.fotos.slice(fotoAtual).concat(leilao.item.fotos).slice(0, 1)}
             grande
           />
-          <p className="detalhe__legenda">
-            Imagem ilustrativa. As fotos reais do item serão exibidas quando o
-            anúncio for criado pelo fluxo de cadastro.
-          </p>
+          {leilao.item.fotos.length > 1 && (
+            <div className="miniaturas">
+              {leilao.item.fotos.map((url, i) => (
+                <button key={url} type="button" onClick={() => setFotoAtual(i)}
+                  className={`miniaturas__item${i === fotoAtual ? " ativo" : ""}`}
+                  aria-label={`Ver foto ${i + 1}`}>
+                  <img src={url} alt="" loading="lazy" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <article className="detalhe__painel">

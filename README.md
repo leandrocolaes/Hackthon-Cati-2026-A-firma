@@ -236,8 +236,8 @@ alteração controlada da senha no banco; não apague o volume para corrigir iss
 
 As variáveis de domínio em `.env.example` são carregadas e validadas por
 `app/config.py`. Os próximos cartões devem consumir essa configuração: ainda não
-há seed. A criação de leilão existe, mas sem fotos até o cartão F11: enquanto isso,
-o padrão de `ITEM_MIN_PHOTOS` está **temporariamente em 0** (volta a 3 com o F11).
+há seed. A criação de leilão exige fotos enviadas antes por `POST /api/fotos`
+(padrão `ITEM_MIN_PHOTOS=3`; veja a seção Fotos).
 
 O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
 Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
@@ -297,12 +297,8 @@ exigidos, listas vazias/repetidas e limites acima das colunas do banco. Dinheiro
 usa Decimal; categorias são separadas por `|` e tipos de foto por vírgula.
 As variáveis e padrões estão em `.env.example`; senha/token não pertencem aos logs.
 
-Até o F11 (fotos na nuvem), o padrão está **temporariamente em 0**, então não é
-preciso mexer no `.env`. Para exigir fotos antes disso, defina `ITEM_MIN_PHOTOS=3`.
-
-Vale `0 <= ITEM_MIN_PHOTOS <= ITEM_MAX_PHOTOS`.
-Zero fotos é uma simplificação temporária; a entrega do Núcleo exige pelo menos
-três fotos válidas. O limite padrão por foto é **5.242.880 bytes (5 MiB)**.
+Vale `0 <= ITEM_MIN_PHOTOS <= ITEM_MAX_PHOTOS`; o padrão é **3**, como exige o Núcleo.
+O limite padrão por foto é **5.242.880 bytes (5 MiB)**.
 Nome tem 3–100 caracteres, descrição 10–2.000, fotos 3–10, preço inicial mínimo
 R$ 1,00, antecedência 1 minuto–30 dias e duração 1 minuto–7 dias.
 

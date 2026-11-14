@@ -1076,3 +1076,47 @@ p {
   grid-column: 1 / -1;
   color: var(--texto-suave);
 }
+
+/* ---------- Fotos: miniaturas no detalhe e no formulário de anúncio ---------- */
+.miniaturas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.miniaturas__item {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: #d9d2c2;
+  cursor: pointer;
+}
+
+.miniaturas__item.ativo {
+  border-color: currentColor;
+}
+
+.miniaturas__item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.miniaturas__remover {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  line-height: 22px;
+  cursor: pointer;
+}

@@ -1,7 +1,8 @@
-// Criação de leilão (RF05, RF06; HU03). Fotos chegam com o F11 (POST /api/fotos).
+// Criação de leilão (RF05, RF06, RF07; HU03). Cada foto vai a POST /api/fotos ao ser
+// escolhida; o leilão é criado só com as referências devolvidas pelo servidor.
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, type ErroApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatarBRL } from "../lib/format";
 
@@ -10,7 +11,13 @@ interface ConfigPublica {
           fotos_minimas: number; fotos_maximas: number };
   leilao: { preco_inicial_minimo: string; antecedencia_minima_segundos: number;
             duracao_minima_segundos: number; duracao_maxima_segundos: number };
+  foto: { maxima_bytes: number; tipos_permitidos: string[] };
   categorias: string[];
+}
+
+interface FotoEnviada {
+  referencia: string;
+  url: string;
 }
 
 // <input type="datetime-local"> usa "AAAA-MM-DDTHH:MM" no horário LOCAL de quem preenche.
@@ -29,6 +36,9 @@ export function Anunciar() {
   const [preco, setPreco] = useState("");
   const [inicio, setInicio] = useState(() => paraCampoLocal(new Date(Date.now() + 2 * 60_000)));
   const [duracaoMin, setDuracaoMin] = useState("3");
+  const [fotos, setFotos] = useState<FotoEnviada[]>([]);
+  const [enviandoFotos, setEnviandoFotos] = useState(0);
+  const [erroFoto, setErroFoto] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
@@ -37,6 +47,31 @@ export function Anunciar() {
   }, []);
 
   if (!carregando && !usuario) return <Navigate to="/entrar?voltar=/anunciar" replace />;
+
+  async function escolherFotos(arquivos: FileList | null) {
+    if (!cfg || !arquivos) return;
+    setErroFoto("");
+    const vagas = cfg.item.fotos_maximas - fotos.length - enviandoFotos;
+    const lista = Array.from(arquivos).slice(0, Math.max(vagas, 0));
+    const avisar = (msg: string) => setErroFoto((atual) => (atual ? `${atual} ${msg}` : msg));
+    if (arquivos.length > lista.length) avisar(`No máximo ${cfg.item.fotos_maximas} fotos.`);
+    for (const arquivo of lista) {
+      // Conferência rápida aqui; quem decide de verdade é o servidor (pelo conteúdo).
+      if (arquivo.size > cfg.foto.maxima_bytes) {
+        avisar(`"${arquivo.name}" passa de ${Math.floor(cfg.foto.maxima_bytes / 1048576)} MB.`);
+        continue;
+      }
+      setEnviandoFotos((n) => n + 1);
+      try {
+        const foto = await api.enviarArquivo<FotoEnviada>("/api/fotos", "arquivo", arquivo);
+        setFotos((atuais) => [...atuais, foto]);
+      } catch (err) {
+        avisar(`"${arquivo.name}": ${(err as ErroApi).message}`);
+      } finally {
+        setEnviandoFotos((n) => n - 1);
+      }
+    }
+  }
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -49,7 +84,7 @@ export function Anunciar() {
         // Horário digitado é LOCAL; toISOString() envia o instante em UTC com "Z" (RF19).
         inicio: new Date(inicio).toISOString(),
         duracao_segundos: Math.round(Number(duracaoMin) * 60),
-        fotos: [], // F11
+        fotos: fotos.map((f) => f.referencia), // a ordem aqui é a ordem de exibição
       });
       navegar(`/leiloes/${r.id}`);
     } catch (err) {
@@ -96,14 +131,30 @@ export function Anunciar() {
             <input type="number" step="any" value={duracaoMin} onChange={(e) => setDuracaoMin(e.target.value)} required
               min={cfg.leilao.duracao_minima_segundos / 60} max={cfg.leilao.duracao_maxima_segundos / 60} />
           </label>
-          {cfg.item.fotos_minimas > 0 && (
-            <p className="aviso-sala">
-              O envio de fotos ainda não está disponível e o servidor exige {cfg.item.fotos_minimas} foto(s).
-              Até lá, a criação será recusada (em desenvolvimento, use ITEM_MIN_PHOTOS=0).
-            </p>
+          <label className="campo">
+            Fotos <small>({fotos.length} de {cfg.item.fotos_minimas}–{cfg.item.fotos_maximas}; a primeira é a capa)</small>
+            <input type="file" multiple accept={cfg.foto.tipos_permitidos.join(",")}
+              disabled={fotos.length + enviandoFotos >= cfg.item.fotos_maximas}
+              onChange={(e) => { escolherFotos(e.target.files); e.target.value = ""; }} />
+          </label>
+          {(fotos.length > 0 || enviandoFotos > 0) && (
+            <div className="miniaturas">
+              {fotos.map((f, i) => (
+                <div key={f.referencia} className="miniaturas__item">
+                  <img src={f.url} alt={`Foto ${i + 1}`} />
+                  <button type="button" className="miniaturas__remover" aria-label={`Remover foto ${i + 1}`}
+                    onClick={() => setFotos((atuais) => atuais.filter((x) => x.referencia !== f.referencia))}>
+                    ×
+                  </button>
+                </div>
+              ))}
+              {enviandoFotos > 0 && <p className="detalhe__legenda">Enviando {enviandoFotos} foto(s)…</p>}
+            </div>
           )}
+          {erroFoto && <p className="aviso-sala" role="alert">{erroFoto}</p>}
           {erro && <p className="aviso-sala" role="alert">{erro}</p>}
-          <button className="botao botao--principal botao--largo" disabled={enviando}>
+          <button className="botao botao--principal botao--largo"
+            disabled={enviando || enviandoFotos > 0 || fotos.length < cfg.item.fotos_minimas}>
             {enviando ? "Enviando…" : "Criar leilão"}
           </button>
         </form>
