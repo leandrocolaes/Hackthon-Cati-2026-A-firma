@@ -1,4 +1,4 @@
-# Sobe os 3 serviços: banco (db), API (backend) e site (frontend + Nginx).
+# Sobe os 4 serviços: banco (db), API (backend), worker (abre/fecha leilões) e site (frontend + Nginx).
 # Uso: docker compose up --build   → abra http://localhost:8080
 #      docker compose up -d --build  (em segundo plano, como na VM)
 # Precisa do arquivo .env (cp .env.example .env). Sem ele o Compose para com uma mensagem clara.
@@ -46,6 +46,17 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  worker:                                 # abre e fecha leilões sozinho (RF17, RF18); sem porta publicada
+    build: ./backend                      # mesma imagem do backend, outro comando
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./frontend

@@ -90,6 +90,8 @@ pip install -r requirements.txt
 export DATABASE_URL="postgresql+psycopg://leilao:SUA_SENHA@127.0.0.1:5433/leilao"
 alembic upgrade head
 uvicorn app.main:app --reload
+# (opcional) outro terminal, mesmo venv e DATABASE_URL: abre e fecha leilões sozinho
+# python -m app.worker
 
 # terminal 3 — frontend (precisa de Node 22)
 cd frontend
@@ -120,7 +122,7 @@ Entra quando o requisito pedir, não antes:
 | React Router | A segunda página |
 | Tailwind | Quando formos estilizar |
 | Pytest, Vitest, Ruff, ESLint | Testes da concorrência e dos lances (RF11, RF12) |
-| Processo de fundo (agendador) | Abertura e fechamento automáticos (RF17, RF18) |
+| Processo de fundo (agendador) | Já existe: serviço `worker` do compose (`app/worker.py`), abre e fecha leilões a cada 1 s (RF17, RF18) |
 
 ## Decisões da equipe
 
