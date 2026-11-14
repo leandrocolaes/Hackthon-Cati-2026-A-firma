@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Leilao } from "../classes/Leilao";
 import { FotoLeilao } from "../components/FotoLeilao";
+import { SalaAoVivo } from "../components/SalaAoVivo";
 import { SeloEstado } from "../components/SeloEstado";
 import { api, ErroApi, leilaoDoDetalhe, type DetalheApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -11,7 +12,7 @@ import { useRelogio } from "../lib/useRelogio";
 export function LeilaoDetalhe() {
   const { id } = useParams();
   const agora = useRelogio();
-  const [avisoSala, setAvisoSala] = useState(false);
+  const [naSala, setNaSala] = useState(false);
   const { usuario } = useAuth();
   const navegar = useNavigate();
   const local = useLocation();
@@ -31,7 +32,7 @@ export function LeilaoDetalhe() {
       navegar(`/entrar?voltar=${encodeURIComponent(local.pathname)}`);
       return;
     }
-    setAvisoSala(true);
+    setNaSala(true);
   }
 
   if (situacao === "carregando") {
@@ -93,11 +94,14 @@ export function LeilaoDetalhe() {
           <h1>{leilao.item.nome}</h1>
           <p className="detalhe__descricao">{leilao.item.descricao}</p>
 
-          <div className="detalhe__preco">
-            <span>{leilao.rotuloPreco}</span>
-            <strong>{formatarBRL(leilao.precoEmDestaque)}</strong>
-            <small>{leilao.tempoEmDestaque(agora)}</small>
-          </div>
+          {/* Com a sala aberta, o preço ao vivo fica na sala (este seria o da hora do carregamento). */}
+          {!naSala && (
+            <div className="detalhe__preco">
+              <span>{leilao.rotuloPreco}</span>
+              <strong>{formatarBRL(leilao.precoEmDestaque)}</strong>
+              <small>{leilao.tempoEmDestaque(agora)}</small>
+            </div>
+          )}
 
           <dl className="detalhe__dados">
             <div>
@@ -118,18 +122,16 @@ export function LeilaoDetalhe() {
             </div>
           </dl>
 
-          <button
-            type="button"
-            className="botao botao--principal botao--largo"
-            onClick={entrarNaSala}
-          >
-            Entrar na sala
-          </button>
-
-          {avisoSala && (
-            <p className="aviso-sala" role="status">
-              A sala ao vivo ainda não está conectada nesta versão.
-            </p>
+          {naSala && usuario ? (
+            <SalaAoVivo leilaoId={leilao.id} />
+          ) : (
+            <button
+              type="button"
+              className="botao botao--principal botao--largo"
+              onClick={entrarNaSala}
+            >
+              Entrar na sala
+            </button>
           )}
 
           <p className="detalhe__rodape">

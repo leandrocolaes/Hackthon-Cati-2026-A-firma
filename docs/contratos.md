@@ -67,9 +67,12 @@ inteira: DATABASE_URL e configuracao interna nao pertencem a resposta publica.
   "inicio":"2026-11-14T18:00:00Z","termino_original":"2026-11-14T18:03:00Z","termino_vigente":"2026-11-14T18:03:00Z",
   "preco_atual":"10.00","lance_minimo":"10.00","lider":null,
   "total_lances":0,"ultimos_lances":[],"resultado":null,
-  "meu_participante_id":7,"pode_dar_lance":true,"motivo_impedimento":null
+  "meu_participante_id":7,"sou_comitente":false,"pode_dar_lance":true,"motivo_impedimento":null
 }
 ```
+
+`sou_comitente` (acrescentado com o frontend da sala): indica se quem pede e o comitente,
+para a tela mostrar o cancelamento so a ele. O servidor continua decidindo (RF08).
 
 Lider: `{"participante_id":7,"apelido":"Participante 1"}`.
 Lance recente: `{"id":4,"participante_id":7,"apelido":"Participante 1","valor":"10.00","criado_em":"2026-11-14T18:00:40Z"}`.

@@ -36,6 +36,8 @@ class LancesTest(TesteLeilao):
         self.assertEqual(s["versao"], r.json()["versao"])
         self.assertTrue(s["server_time"].endswith("Z"))
         self.assertNotIn("Bruno", str(s))  # nunca o nome na sala
+        self.assertFalse(s["sou_comitente"])
+        self.assertTrue(self.sala(self.ana).json()["sou_comitente"])
 
     def test_recusas_com_codigo_e_lance_minimo(self):
         self.preparar()

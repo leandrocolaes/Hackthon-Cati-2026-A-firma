@@ -64,6 +64,8 @@ def snapshot(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int) -
                            for i, u, v, c in recentes],
         "resultado": resultado,
         "meu_participante_id": meu,
+        # Para a tela mostrar o cancelamento so ao comitente; quem decide e o servidor (RF08).
+        "sou_comitente": usuario_id == leilao.comitente_id,
         "pode_dar_lance": motivo is None,
         "motivo_impedimento": motivo,
     }
