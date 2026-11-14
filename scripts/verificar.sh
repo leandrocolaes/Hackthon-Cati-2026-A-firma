@@ -3,11 +3,11 @@
 #
 #   scripts/verificar.sh env              confere o arquivo .env (antes de subir)
 #   scripts/verificar.sh http [URL]       confere o site já no ar: página, health e WebSocket
-#                                         URL padrão: http://localhost
+#                                         URL padrão: http://localhost:8080
 #   scripts/verificar.sh                  roda "env" e depois "http"
 #
 # Para provar que a VM está acessível, rode o "http" de OUTRO computador, usando o
-# endereço da VM (http://<endereço-da-vm>). Rodar na própria VM com localhost não prova isso.
+# endereço público (http://200.18.99.113:<porta pública da equipe>). Rodar na própria VM com localhost não prova isso.
 # Precisa de: bash e curl. Sai com código 1 se qualquer verificação falhar.
 
 set -u
@@ -86,7 +86,7 @@ verificar_env() {
 }
 
 verificar_http() {
-  local base="${1:-http://localhost}"
+  local base="${1:-http://localhost:8080}"
   base="${base%/}"
   echo "== site em $base =="
 

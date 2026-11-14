@@ -1,5 +1,5 @@
 # Sobe os 3 serviços: banco (db), API (backend) e site (frontend + Nginx).
-# Uso: docker compose up --build   → abra http://localhost
+# Uso: docker compose up --build   → abra http://localhost:8080
 #      docker compose up -d --build  (em segundo plano, como na VM)
 # Precisa do arquivo .env (cp .env.example .env). Sem ele o Compose para com uma mensagem clara.
 services:
@@ -51,7 +51,7 @@ services:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-80}:80"             # a única porta aberta para o mundo (80 por padrão; HTTP_PORT só para quem já usa a 80)
+      - "${HTTP_PORT:-8080}:80"           # a única porta aberta para o mundo; 8080 é a exigida pela organização na VM
     depends_on:
       - backend
 

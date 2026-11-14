@@ -6,7 +6,7 @@ Esqueleto mínimo do projeto. **Não tem nenhuma funcionalidade ainda**: só lig
 
 ```
  Navegador
-    │  http://<vm>/            (porta 80, a única aberta)
+    │  http://<vm>:8080/       (porta 8080, a única aberta)
     ▼
  ┌──────────────── Nginx (container "frontend") ────────────────┐
  │  /           → arquivos do React já compilados               │
@@ -52,22 +52,25 @@ docker compose run --rm backend alembic upgrade head
 docker compose up --build
 ```
 
-Abra http://localhost (ou `http://localhost:<HTTP_PORT>` se você configurou outra
+Abra http://localhost:8080 (ou `http://localhost:<HTTP_PORT>` se você configurou outra
 porta no `.env`). Para parar: `Ctrl+C`; `docker compose down` remove os containers,
 mas preserva o volume. Não use `docker compose down -v` para atualizar: ele apaga os dados.
 
-A porta HTTP padrão é 80; `HTTP_PORT` permite usar outra porta do host. O PostgreSQL
+A porta HTTP padrão é **8080**, exigida pela organização: na VM, o acesso externo
+(`http://200.18.99.113:<porta pública da equipe>`) é redirecionado para a 8080.
+Não mude a porta na VM; localmente, `HTTP_PORT` permite usar outra se a 8080 estiver ocupada. O PostgreSQL
 fica acessível apenas no próprio computador em `127.0.0.1:5433`. Entre containers,
 o endereço continua sendo `db:5432`; não troque a porta interna por 5433.
 
 Para verificar página, health e handshake WebSocket do sistema em execução:
 
 ```bash
-bash scripts/verificar.sh http http://localhost
+bash scripts/verificar.sh http http://localhost:8080
 ```
 
 Ajuste a URL se usar `HTTP_PORT`. Para comprovar o acesso externo à VM, execute a
-verificação de outro computador com a URL da VM. O script não verifica migrações;
+verificação de outro computador com a URL pública:
+`http://200.18.99.113:<porta pública da equipe>`. O script não verifica migrações;
 confirme também `alembic current` e `alembic check` conforme a seção abaixo.
 
 ### Desenvolvendo (com recarga automática)
@@ -277,15 +280,14 @@ Nome tem 3–100 caracteres, descrição 10–2.000, fotos 3–10, preço inicia
 R$ 1,00, antecedência 1 minuto–30 dias e duração 1 minuto–7 dias.
 
 Após alterar o `.env`, recrie os serviços afetados, pois `restart` sozinho não
-recarrega variáveis injetadas pelo Compose. Na VM, se a porta 80 estiver ocupada,
-defina `HTTP_PORT=8080` no `.env` **antes** de recriar o frontend:
+recarrega variáveis injetadas pelo Compose:
 
 ```bash
 docker compose up -d --build --force-recreate backend frontend
 ```
 
 Esse comando é uma instrução; o `.env` e os containers da VM não foram alterados
-nesta entrega. A porta padrão do Compose é 80; a variável HTTP_PORT controla o
+nesta entrega. A porta padrão do Compose é 8080; a variável HTTP_PORT controla o
 mapeamento, não a porta interna do Nginx nem a do Vite.
 
 [Contratos de integração](docs/contratos.md): rotas, exemplos de entrada/saída,
