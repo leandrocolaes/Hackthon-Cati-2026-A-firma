@@ -136,6 +136,17 @@ function FormLance({ leilaoId, minimo, aoMudar, aoExpirar }:
   // Tentativa sem resposta (rede caiu): o reenvio usa a MESMA chave (RF12).
   const [pendente, setPendente] = useState<{ chave: string; valor: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  // RF13: depois de um 429, segura o botão até o servidor permitir de novo (quem decide
+  // continua sendo o servidor; isto só evita cliques que seriam recusados).
+  const [esperaAte, setEsperaAte] = useState(0);
+  const [, setTique] = useState(0);
+  const espera = Math.max(0, Math.ceil((esperaAte - Date.now()) / 1000));
+  useEffect(() => {
+    if (esperaAte <= Date.now()) return;
+    const t = window.setInterval(() => setTique((x) => x + 1), 250);
+    const fim = window.setTimeout(() => window.clearInterval(t), esperaAte - Date.now() + 300);
+    return () => { window.clearInterval(t); window.clearTimeout(fim); };
+  }, [esperaAte]);
 
   async function enviar(chave: string, v: string) {
     setEnviando(true);
@@ -149,6 +160,12 @@ function FormLance({ leilaoId, minimo, aoMudar, aoExpirar }:
       if (erro.status === 0) {
         setPendente({ chave, valor: v });
         setMensagem({ texto: "Sem resposta do servidor. Tente de novo: a mesma tentativa não é duplicada.", ok: false });
+      } else if (erro.status === 429) {
+        // Cedo demais: a tentativa não foi gravada; o mesmo valor pode ir de novo depois.
+        const segundos = Number(erro.detalhes?.segundos_restantes ?? 2);
+        setEsperaAte(Date.now() + segundos * 1000);
+        setPendente(null);
+        setMensagem({ texto: erro.message, ok: false });
       } else {
         setPendente(null);
         if (erro.status === 401) aoExpirar();
@@ -175,7 +192,9 @@ function FormLance({ leilaoId, minimo, aoMudar, aoExpirar }:
       </label>
       <div className="sala__acoes">
         <button type="button" className="botao-link" onClick={() => setValor(minimo)}>Usar o mínimo</button>
-        <button className="botao botao--principal" disabled={enviando}>{enviando ? "Enviando…" : "Dar lance"}</button>
+        <button className="botao botao--principal" disabled={enviando || espera > 0}>
+          {enviando ? "Enviando…" : espera > 0 ? `Aguarde ${espera} s` : "Dar lance"}
+        </button>
       </div>
       {pendente && (
         <button type="button" className="botao botao--dourado botao--largo" disabled={enviando}
