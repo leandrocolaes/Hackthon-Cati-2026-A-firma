@@ -40,6 +40,8 @@ leilao, e UUIDs identificam tentativas ou referencias opacas conforme indicado.
 | GET `/api/meus-leiloes` | Sessao valida | — | 200 `{"itens":[{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"agendado","preco_inicial":"10.00","preco_atual":"10.00","inicio":"...","termino_vigente":"...","total_lances":0,"participantes":0,"pode_editar":true,"pode_cancelar":true}]}` (todos os estados, mais recentes primeiro; `participantes` nao conta o comitente) |
 | GET `/api/comitentes/{ref}` | Publico | — | 200 `{"ref":"3f9c0a1b2c4d5e6f","nome":"Ana","ativos":[<cartao do catalogo>],"encerrados":{"vendidos":1,"sem_lances":0,"cancelados":2,"recentes":[{"id":3,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"vendido","encerrado_em":"..."}]}}`; 404 recurso_nao_encontrado (RF22: nunca e-mail, ids de usuario, lances, vencedor ou valor final) |
 | WS `/api/leiloes/1/ws` | Sessao e participacao | handshake com cookie, sem corpo | 101 na conexao; mensagem `{"tipo":"estado_leilao","estado":<snapshot abaixo>}` |
+| GET `/api/leiloes/1/espectador` | Publico (RF25) | — | 200 snapshot publico (abaixo); 409 leilao_fora_do_estado se nao estiver em andamento; nao cria participante nem renova sessao |
+| WS `/api/leiloes/1/ws?modo=espectador` | Publico (RF25) | sem cookie (ou com, se o usuario escolheu Assistir) | 101; mensagens com o snapshot publico ate o resultado; fecha com 4409 se o leilao nao estiver em andamento na entrada |
 
 O exemplo de criacao com `fotos: []` exige ITEM_MIN_PHOTOS=0 explicitamente no
 ambiente de desenvolvimento/versao minima. Com o padrao 3, deve ser recusado.
@@ -88,6 +90,12 @@ inteira: DATABASE_URL e configuracao interna nao pertencem a resposta publica.
 `hard_end` (fase 2, RF15): termino_original + 10 min, teto de qualquer prorrogacao.
 `prorrogacao_esgotada`: true quando termino_vigente ja chegou ao hard_end; a sala mostra
 aviso persistente de que o encerramento e definitivo naquele horario.
+
+Snapshot publico do espectador (RF25): os mesmos campos de prazo e preco, mais
+`"espectador":true`, com lider/lances/vencedor so por apelido
+(`{"apelido":"Participante 1"}`, lances `{"apelido","valor","criado_em"}`). Nao tem
+`participante_id`, id de lance, `meu_participante_id`, `sou_comitente`,
+`pode_dar_lance` nem `motivo_impedimento`. E igual para todos os espectadores.
 
 `sou_comitente` (acrescentado com o frontend da sala): indica se quem pede e o comitente,
 para a tela mostrar o cancelamento so a ele. O servidor continua decidindo (RF08).

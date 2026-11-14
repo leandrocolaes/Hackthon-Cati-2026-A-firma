@@ -1,7 +1,10 @@
 """WS /api/leiloes/{id}/ws: atualizacoes da sala (docs/contratos.md).
 
 Recebe atualizacoes do servidor; NAO e o canal de envio de lances (lance e POST).
-Fechamentos: 4401 sessao invalida/expirada; 4403 sem participacao; 4404 leilao inexistente.
+Fechamentos: 4401 sessao invalida/expirada; 4403 sem participacao; 4404 leilao inexistente;
+4409 espectador em leilao que nao esta em andamento.
+
+?modo=espectador (RF25): sem cookie e sem participacao; snapshot publico.
 """
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -14,10 +17,14 @@ router = APIRouter()
 
 
 @router.websocket("/api/leiloes/{leilao_id}/ws")
-async def sala_ao_vivo(ws: WebSocket, leilao_id: int):
-    # O cookie de sessao chega no handshake (mesma origem via Nginx).
-    token = ws.cookies.get(obter_configuracoes().sessao_cookie_nome)
-    codigo, usuario_id, token_hash = await run_in_threadpool(tempo_real.autorizar, token, leilao_id)
+async def sala_ao_vivo(ws: WebSocket, leilao_id: int, modo: str = "participante"):
+    if modo == "espectador":
+        codigo = await run_in_threadpool(tempo_real.autorizar_espectador, leilao_id)
+        usuario_id = token_hash = None
+    else:
+        # O cookie de sessao chega no handshake (mesma origem via Nginx).
+        token = ws.cookies.get(obter_configuracoes().sessao_cookie_nome)
+        codigo, usuario_id, token_hash = await run_in_threadpool(tempo_real.autorizar, token, leilao_id)
     await ws.accept()  # 101; recusas sao comunicadas pelo codigo de fechamento
     if codigo:
         await ws.close(code=codigo)

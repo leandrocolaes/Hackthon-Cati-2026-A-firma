@@ -28,11 +28,12 @@ class TempoRealTest(TesteLeilao):
         self.servidor.__enter__()
         self.addCleanup(self.servidor.__exit__, None, None, None)
 
-    def ws(self, cliente, leilao_id):
+    def ws(self, cliente, leilao_id, modo=None):
         """Abre o WebSocket no servidor ligado, com o cookie de sessao do cliente."""
         nome = obter_configuracoes().sessao_cookie_nome
         cabecalhos = {"cookie": f"{nome}={cliente.cookies.get(nome)}"} if cliente else {}
-        return self.servidor.websocket_connect(f"/api/leiloes/{leilao_id}/ws", headers=cabecalhos)
+        sufixo = f"?modo={modo}" if modo else ""
+        return self.servidor.websocket_connect(f"/api/leiloes/{leilao_id}/ws{sufixo}", headers=cabecalhos)
 
     def esperar(self, ws, condicao, limite=6.0):
         fim = time.monotonic() + limite
@@ -130,3 +131,35 @@ class TempoRealTest(TesteLeilao):
         self.assertEqual(self.banco.sql(sql_sessao, u=self.carla.usuario_id).scalar_one(), sessao)
         self.assertEqual(self.banco.sql("SELECT count(*) FROM lances WHERE leilao_id=:l",
                                         l=self.leilao).scalar_one(), 1)
+
+    def test_espectador_sem_login_recebe_atualizacoes_ate_o_resultado(self):
+        """RF25: WS publico; nao cria participante; acompanha ate o fechamento."""
+        self.preparar()
+        participantes = self.banco.sql("SELECT count(*) FROM participantes").scalar_one()
+        with self.ws(None, self.leilao, modo="espectador") as ws:
+            inicial = ws.receive_json()["estado"]
+            self.assertTrue(inicial["espectador"])
+            self.assertNotIn("meu_participante_id", inicial)
+            self.bruno.post(f"/api/leiloes/{self.leilao}/lances", json={"valor": "100.00", "chave": str(uuid4())})
+            s = self.esperar(ws, lambda e: e["total_lances"] == 1)
+            self.assertEqual(s["lider"], {"apelido": "Participante 2"})
+            self.banco.sql("UPDATE leiloes SET termino_vigente = clock_timestamp(), "
+                           "termino_original = clock_timestamp() WHERE id=:id", id=self.leilao)
+            with self.banco.Sessao() as db:
+                agenda.fechar_vencidos(db)
+            s = self.esperar(ws, lambda e: e["estado"] == "vendido")
+            self.assertEqual(s["resultado"], {"vencedor": {"apelido": "Participante 2"}, "valor": "100.00"})
+        self.assertEqual(self.banco.sql("SELECT count(*) FROM participantes").scalar_one(), participantes)
+
+    def test_espectador_logado_e_leilao_fora_de_andamento(self):
+        self.preparar()
+        dani = self.cadastrar_e_entrar()
+        with self.ws(dani, self.leilao, modo="espectador") as ws:  # logado escolhendo "Assistir"
+            self.assertTrue(ws.receive_json()["estado"]["espectador"])
+        self.assertEqual(self.banco.sql("SELECT count(*) FROM participantes WHERE usuario_id=:u",
+                                        u=dani.usuario_id).scalar_one(), 0)
+        agendado = self.novo_leilao(self.ana)
+        with self.ws(None, agendado, modo="espectador") as ws:
+            self.assertEqual(self.fechado_com(ws), 4409)
+        with self.ws(None, 999999, modo="espectador") as ws:
+            self.assertEqual(self.fechado_com(ws), 4404)

@@ -9,6 +9,11 @@ Sem LISTEN/NOTIFY nesta versao (decisao do contrato). Como funciona:
   4. O snapshot e personalizado (meu_participante_id, pode_dar_lance): cada conexao
      recebe o seu, nunca um compartilhado.
 
+Espectador (RF25): WS /api/leiloes/{id}/ws?modo=espectador, sem cookie. So entra em
+leilao em andamento (senao fecha com 4409), nao cria participante e recebe o snapshot
+publico (sem dados pessoais) ate o resultado final. Com cookie, o usuario logado que
+escolheu "Assistir" tambem entra assim, sem virar participante.
+
 Atraso tipico: ate ~1 s, alem de rede/processamento. Pode agrupar mudancas
 intermediarias: e um "estado atual", nao um log de eventos.
 Expiracao: a sessao e reconferida a cada envio e a cada VERIFICAR_SESSAO_SEGUNDOS;
@@ -29,7 +34,7 @@ from app.config import obter_configuracoes
 from app.erros import ErroApi
 from app.models import Leilao, Participante, Sessao
 from app.seguranca import hash_token
-from app.servicos.sala import snapshot
+from app.servicos.sala import snapshot, snapshot_publico
 from app.tempo import agora
 
 log = logging.getLogger("tempo_real")
@@ -42,6 +47,7 @@ VERIFICAR_SESSAO_SEGUNDOS = 30.0
 FECHAR_SEM_SESSAO = 4401
 FECHAR_SEM_PARTICIPACAO = 4403
 FECHAR_NAO_ENCONTRADO = 4404
+FECHAR_FORA_DO_ESTADO = 4409  # espectador so em leilao em andamento (RF25)
 
 # Ponto de troca para os testes (sessoes ligadas ao schema de teste).
 fabrica_sessao = None
@@ -55,9 +61,13 @@ def _sessao():
 class Conexao:
     ws: WebSocket
     leilao_id: int
-    usuario_id: int
-    token_hash: str
+    usuario_id: int | None  # None = espectador (RF25)
+    token_hash: str | None
     versao_enviada: int = -1
+
+    @property
+    def espectador(self) -> bool:
+        return self.usuario_id is None
     envio: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -102,6 +112,15 @@ def autorizar(token: str | None, leilao_id: int) -> tuple[int | None, int | None
     return None, usuario_id, th
 
 
+def autorizar_espectador(leilao_id: int) -> int | None:
+    """Codigo de fechamento, ou None. Sem sessao: so confere que o leilao esta em andamento."""
+    with _sessao() as db:
+        estado = db.execute(select(Leilao.estado).where(Leilao.id == leilao_id)).scalar_one_or_none()
+    if estado is None:
+        return FECHAR_NAO_ENCONTRADO
+    return None if estado == "em_andamento" else FECHAR_FORA_DO_ESTADO
+
+
 def sessao_valida(token_hash: str) -> bool:
     with _sessao() as db:
         return db.execute(select(exists().where(
@@ -110,6 +129,12 @@ def sessao_valida(token_hash: str) -> bool:
 
 def montar(c: Conexao) -> tuple[int | None, dict | None]:
     """(codigo_de_fechamento, snapshot). Reconfere a sessao antes de montar."""
+    if c.espectador:
+        with _sessao() as db:
+            try:  # ja esta assistindo: continua recebendo ate o resultado final
+                return None, snapshot_publico(db, obter_configuracoes(), c.leilao_id, exigir_em_andamento=False)
+            except ErroApi:
+                return FECHAR_NAO_ENCONTRADO, None
     if not sessao_valida(c.token_hash):
         return FECHAR_SEM_SESSAO, None
     with _sessao() as db:

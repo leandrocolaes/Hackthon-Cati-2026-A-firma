@@ -3,6 +3,7 @@
     POST /api/leiloes/{id}/lances  {"valor": "10.00", "chave": "<uuid>"}
          201 {lance_id, leilao_id, valor, versao} | 409 recusa {codigo, mensagem, detalhes}
     GET  /api/leiloes/{id}/sala    snapshot personalizado (exige participacao)
+    GET  /api/leiloes/{id}/espectador  snapshot publico (RF25: sem login, so em andamento)
 """
 
 from uuid import UUID
@@ -46,3 +47,10 @@ def ver_sala(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual_sem_
              cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
     """Consultada em polling pela tela: NAO renova a sessao (expira por inatividade humana)."""
     return sala.snapshot(db, cfg, leilao_id, usuario.id)
+
+
+@router.get("/{leilao_id}/espectador")
+def ver_como_espectador(leilao_id: int, cfg: Configuracoes = Depends(obter_configuracoes),
+                        db: Session = Depends(get_db)):
+    """RF25: publico. Nao exige nem renova sessao e nao cria participante."""
+    return sala.snapshot_publico(db, cfg, leilao_id)
