@@ -1,6 +1,6 @@
 // Criação de leilão (RF05, RF06, RF07; HU03). Cada foto vai a POST /api/fotos ao ser
 // escolhida; o leilão é criado só com as referências devolvidas pelo servidor.
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, type DetalheApi, type ErroApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -41,32 +41,54 @@ export function Anunciar() {
   const [duracaoMin, setDuracaoMin] = useState("3");
   const [fotos, setFotos] = useState<FotoEnviada[]>([]);
   const [enviandoFotos, setEnviandoFotos] = useState(0);
+  const [versao, setVersao] = useState<number | null>(null);
+  const [conflito, setConflito] = useState(false);
   const [erroFoto, setErroFoto] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
+  const aplicarDetalhe = useCallback((d: DetalheApi) => {
+    setConflito(false);
+    setNome(d.item.nome);
+    setDescricao(d.item.descricao);
+    setCategoria(d.item.categoria);
+    setPreco(d.preco_inicial);
+    setInicio(paraCampoLocal(new Date(d.inicio)));
+    setDuracaoMin(String((Date.parse(d.termino_vigente) - Date.parse(d.inicio)) / 60_000));
+    setVersao(d.versao);
+    // Só fotos enviadas por aqui têm referência; as de exemplo (seed) precisam ser trocadas.
+    const ordenadas = [...d.item.fotos].sort((a, b) => a.ordem - b.ordem);
+    const proprias = ordenadas.filter((f) => f.url.startsWith("/api/fotos/"));
+    setFotos(proprias.map((f) => ({ referencia: f.url.slice("/api/fotos/".length), url: f.url })));
+    setErroFoto(proprias.length < ordenadas.length
+      ? "As fotos de exemplo não podem ser mantidas: envie fotos novas." : "");
+  }, []);
+
   useEffect(() => {
+    let ativo = true;
     Promise.all([
       api.get<ConfigPublica>("/api/config-publica"),
       editando ? api.get<DetalheApi>(`/api/leiloes/${id}`) : Promise.resolve(null),
     ]).then(([c, d]) => {
-      setCategoria(c.categorias[0]);
-      if (d) {
-        setNome(d.item.nome);
-        setDescricao(d.item.descricao);
-        setCategoria(d.item.categoria);
-        setPreco(d.preco_inicial);
-        setInicio(paraCampoLocal(new Date(d.inicio)));
-        setDuracaoMin(String((Date.parse(d.termino_vigente) - Date.parse(d.inicio)) / 60_000));
-        // Só fotos enviadas por aqui têm referência; as de exemplo (seed) precisam ser trocadas.
-        const ordenadas = [...d.item.fotos].sort((a, b) => a.ordem - b.ordem);
-        const proprias = ordenadas.filter((f) => f.url.startsWith("/api/fotos/"));
-        setFotos(proprias.map((f) => ({ referencia: f.url.slice("/api/fotos/".length), url: f.url })));
-        if (proprias.length < ordenadas.length) setErroFoto("As fotos de exemplo não podem ser mantidas: envie fotos novas.");
-      }
+      if (!ativo) return;
       setCfg(c);
-    }).catch((e: ErroApi) => setErro(e.message));
-  }, [editando, id]);
+      setCategoria(c.categorias[0]);
+      if (d) aplicarDetalhe(d);
+    }).catch((e: ErroApi) => { if (ativo) setErro(e.message); });
+    return () => { ativo = false; };
+  }, [editando, id, aplicarDetalhe]);
+
+  async function recarregarAtual() {
+    setErro("");
+    try {
+      const d = await api.get<DetalheApi>(`/api/leiloes/${id}`);
+      aplicarDetalhe(d);
+      setConflito(false);
+      setErro("Dados atuais carregados. Revise o formulário e salve novamente.");
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }
 
   if (!carregando && !usuario) {
     const voltar = editando ? `/leiloes/${id}/editar` : "/anunciar";
@@ -101,6 +123,10 @@ export function Anunciar() {
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setErro("");
+    if (editando && versao === null) {
+      setErro("Não foi possível carregar a versão atual deste leilão. Recarregue a página.");
+      return;
+    }
     setEnviando(true);
     try {
       const corpo = {
@@ -112,11 +138,16 @@ export function Anunciar() {
         fotos: fotos.map((f) => f.referencia), // a ordem aqui é a ordem de exibição
       };
       const r = editando
-        ? await api.put<{ id: number }>(`/api/leiloes/${id}`, corpo)
+        ? await api.put<{ id: number }>(`/api/leiloes/${id}`, { ...corpo, versao })
         : await api.post<{ id: number }>("/api/leiloes", corpo);
       navegar(`/leiloes/${r.id}`);
     } catch (err) {
-      setErro((err as Error).message);
+      const e = err as ErroApi;
+      if (editando && e.codigo === "conflito_de_versao") {
+        setConflito(true);
+      } else {
+        setErro(e.message);
+      }
     } finally {
       setEnviando(false);
     }
@@ -184,6 +215,17 @@ export function Anunciar() {
             </div>
           )}
           {erroFoto && <p className="aviso-sala" role="alert">{erroFoto}</p>}
+          {conflito && (
+            <div className="aviso-sala" role="alert">
+              <p>
+                Este leilão foi alterado desde que o formulário foi aberto.
+                Seus dados não foram salvos.
+              </p>
+              <button type="button" className="botao-link" onClick={recarregarAtual}>
+                Carregar os dados atuais para revisar
+              </button>
+            </div>
+          )}
           {erro && <p className="aviso-sala" role="alert">{erro}</p>}
           <button className="botao botao--principal botao--largo"
             disabled={enviando || enviandoFotos > 0 || fotos.length < cfg.item.fotos_minimas}>

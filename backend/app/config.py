@@ -38,8 +38,6 @@ class Configuracoes(BaseSettings):
     antecedencia_maxima_segundos: int = Field(2592000, gt=0, validation_alias="AUCTION_MAX_ADVANCE_SECONDS")
     duracao_minima_segundos: int = Field(60, gt=0, validation_alias="AUCTION_MIN_DURATION_SECONDS")
     duracao_maxima_segundos: int = Field(604800, gt=0, validation_alias="AUCTION_MAX_DURATION_SECONDS")
-    # Edicao: liberada se ninguem (alem do comitente) entrou na sala OU se falta mais que isto para o inicio.
-    edicao_antecedencia_segundos: int = Field(600, ge=0, validation_alias="AUCTION_EDIT_MIN_ADVANCE_SECONDS")
     nome_item_minimo: int = Field(3, ge=1, le=100, validation_alias="ITEM_NAME_MIN_LENGTH")
     nome_item_maximo: int = Field(100, ge=1, le=100, validation_alias="ITEM_NAME_MAX_LENGTH")
     descricao_item_minima: int = Field(10, ge=1, le=2000, validation_alias="ITEM_DESCRIPTION_MIN_LENGTH")

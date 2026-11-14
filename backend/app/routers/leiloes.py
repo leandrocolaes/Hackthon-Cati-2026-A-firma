@@ -10,13 +10,16 @@
     GET  /api/meus-leiloes                    -> leiloes do usuario com pode_editar/pode_cancelar
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import dinheiro
 from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
-from app.schemas.leiloes import Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, ParticipanteSaida
+from app.schemas.leiloes import (Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, LeilaoEditar,
+                                 ParticipanteSaida)
 from app.servicos import cancelamento, edicao, leiloes, participantes
 from app.sessoes import UsuarioLogado, usuario_atual
 
@@ -48,10 +51,22 @@ def criar(dados: LeilaoCriar, usuario: UsuarioLogado = Depends(usuario_atual),
 
 
 @router.get("/leiloes", response_model=Catalogo)
-def catalogo(pagina: int = Query(1, ge=1), por_pagina: int = Query(20, ge=1, le=100),
-             db: Session = Depends(get_db)):
+def catalogo(
+    pagina: int = Query(1, ge=1),
+    por_pagina: int = Query(20, ge=1, le=100),
+    busca: str | None = Query(None, max_length=100),
+    categoria: str | None = Query(None, max_length=200),
+    estado: Literal["agendado", "em_andamento"] | None = Query(None),
+    preco_min: str | None = Query(None, max_length=30),
+    preco_max: str | None = Query(None, max_length=30),
+    ordenar: Literal["padrao", "termina", "comeca", "preco_asc", "preco_desc"] = Query("padrao"),
+    db: Session = Depends(get_db),
+):
     """Fora da faixa da 422 (sem correcao silenciosa, conforme o contrato)."""
-    return leiloes.catalogo(db, pagina, por_pagina)
+    return leiloes.catalogo(
+        db, pagina, por_pagina, busca=busca, categoria=categoria, estado=estado,
+        preco_min=preco_min, preco_max=preco_max, ordenar=ordenar,
+    )
 
 
 @router.get("/leiloes/{leilao_id}", response_model=LeilaoDetalhe)
@@ -71,12 +86,11 @@ def cancelar(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual), db
 
 
 @router.put("/leiloes/{leilao_id}")
-def editar(leilao_id: int, dados: LeilaoCriar, usuario: UsuarioLogado = Depends(usuario_atual),
+def editar(leilao_id: int, dados: LeilaoEditar, usuario: UsuarioLogado = Depends(usuario_atual),
            cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
     return edicao.editar(db, cfg, leilao_id, usuario.id, dados)
 
 
 @router.get("/meus-leiloes")
-def meus_leiloes(usuario: UsuarioLogado = Depends(usuario_atual),
-                 cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
-    return edicao.meus(db, cfg, usuario.id)
+def meus_leiloes(usuario: UsuarioLogado = Depends(usuario_atual), db: Session = Depends(get_db)):
+    return edicao.meus(db, usuario.id)

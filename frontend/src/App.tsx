@@ -30,6 +30,7 @@ export default function App() {
         <div className="conteudo">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/leiloes" element={<Home />} />
             <Route path="/leiloes/:id" element={<LeilaoDetalhe />} />
             <Route path="/entrar" element={<Entrar />} />
             <Route path="/anunciar" element={<Anunciar />} />

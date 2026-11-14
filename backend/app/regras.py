@@ -67,11 +67,10 @@ def cancelamento_permitido(estado: str, instante: datetime, termino_vigente: dat
     return estado == "agendado" or (estado == "em_andamento" and not tem_lider and instante < termino_vigente)
 
 
-def edicao_permitida(estado: str, instante: datetime, inicio: datetime, outros_participantes: int,
-                     cfg: Configuracoes) -> bool:
-    """DECISAO da equipe: so leilao agendado (antes do inicio) e, alem disso, se ninguem
-    alem do comitente entrou na sala OU se falta mais que AUCTION_EDIT_MIN_ADVANCE_SECONDS
-    (padrao 10 min) para o inicio. Quem esta na sala recebe o estado novo na hora."""
-    if estado != "agendado" or instante >= inicio:
-        return False
-    return outros_participantes == 0 or (inicio - instante).total_seconds() > cfg.edicao_antecedencia_segundos
+def edicao_permitida(estado: str, instante: datetime, inicio: datetime, tem_lances: bool) -> bool:
+    """RF23: so leilao Agendado, antes do inicio e ainda sem lances.
+
+    Depois que o leilao inicia ou recebe lance, nome, descricao, categoria,
+    preco inicial, inicio e duracao ficam bloqueados.
+    """
+    return estado == "agendado" and instante < inicio and not tem_lances

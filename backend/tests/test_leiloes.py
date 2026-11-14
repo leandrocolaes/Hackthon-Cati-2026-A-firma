@@ -99,6 +99,72 @@ class LeiloesTest(TesteAPI):
             self.assertEqual(self.cliente().get(f"/api/leiloes?{consulta}").status_code, 422)
         self.assertEqual(self.cliente().get("/api/leiloes?pagina=1&por_pagina=1").json()["por_pagina"], 1)
 
+    def test_rf21_busca_filtros_ordenacao_e_faixa_de_preco(self):
+        ana = self.cadastrar_e_entrar()
+        a = self.criar(ana, nome="RF21 Relógio de ouro", categoria="Colecionáveis",
+                       preco_inicial="500.00", inicio=em(1000))
+        b = self.criar(ana, nome="RF21 relógio simples", categoria="Colecionáveis",
+                       preco_inicial="100.00", inicio=em(600))
+        c = self.criar(ana, nome="RF21 Livro raro", categoria="Livros e mídia",
+                       preco_inicial="50.00", inicio=em(1200))
+        d = self.criar(ana, nome="RF21 Cadeira", categoria="Casa e decoração",
+                       preco_inicial="900.00", inicio=em(300))
+
+        # b e d em andamento; d comeca antes, mas termina depois de b.
+        for leilao_id, inicio_atras, termina_em in ((b, 1200, 200), (d, 2000, 400)):
+            self.banco.sql(
+                """UPDATE leiloes SET estado='em_andamento',
+                   inicio=clock_timestamp()-make_interval(secs=>:i),
+                   termino_original=clock_timestamp()+make_interval(secs=>:t),
+                   termino_vigente=clock_timestamp()+make_interval(secs=>:t)
+                   WHERE id=:id""",
+                id=leilao_id, i=inicio_atras, t=termina_em,
+            )
+        # Agendados: a comeca antes de c, mas termina depois de c.
+        for leilao_id, termina_em in ((a, 2000), (c, 1400)):
+            self.banco.sql(
+                "UPDATE leiloes SET termino_original=clock_timestamp()+make_interval(secs=>:t), "
+                "termino_vigente=clock_timestamp()+make_interval(secs=>:t) WHERE id=:id",
+                id=leilao_id, t=termina_em,
+            )
+
+        def ids(**params):
+            r = self.cliente().get("/api/leiloes", params={"busca": "RF21", "por_pagina": 100, **params})
+            self.assertEqual(r.status_code, 200, r.text)
+            return [item["id"] for item in r.json()["itens"]]
+
+        # Busca no nome, sem diferenciar maiusculas, e combinada com categoria/estado.
+        self.assertEqual(ids(busca="rf21 RELÓGIO"), [b, a])
+        self.assertEqual(set(ids(categoria="Colecionáveis")), {a, b})
+        self.assertEqual(ids(estado="em_andamento"), [b, d])
+        self.assertEqual(ids(categoria="Colecionáveis", estado="agendado"), [a])
+        self.assertEqual(ids(categoria="Colecionáveis", estado="em_andamento"), [b])
+
+        # Faixa inclusiva sobre o preco atual.
+        self.assertEqual(set(ids(preco_min="100", preco_max="500")), {a, b})
+        self.assertEqual(set(ids(preco_min="100")), {a, b, d})
+        self.assertEqual(set(ids(preco_max="100")), {b, c})
+
+        # Ordenacoes.
+        self.assertEqual(ids(), [b, d, a, c])                 # padrao
+        self.assertEqual(ids(ordenar="termina"), [b, d, c, a])
+        self.assertEqual(ids(ordenar="comeca"), [d, b, a, c])
+        self.assertEqual(ids(ordenar="preco_asc"), [c, b, a, d])
+        self.assertEqual(ids(ordenar="preco_desc"), [d, a, b, c])
+
+        # Paginacao depois dos filtros; total reflete a consulta.
+        pagina = self.cliente().get("/api/leiloes", params={
+            "busca": "RF21", "por_pagina": 2, "pagina": 1, "ordenar": "preco_asc",
+        }).json()
+        self.assertEqual(pagina["total"], 4)
+        self.assertEqual([item["id"] for item in pagina["itens"]], [c, b])
+
+        for params in ({"preco_min": "abc"}, {"preco_min": "10.999"},
+                       {"preco_min": "900", "preco_max": "100"},
+                       {"ordenar": "aleatoria"}, {"estado": "vendido"}):
+            with self.subTest(params=params):
+                self.assertEqual(self.cliente().get("/api/leiloes", params=params).status_code, 422)
+
     def test_participantes_numeros_estaveis_e_idempotentes(self):
         ana, bruno, carla = (self.cadastrar_e_entrar() for _ in range(3))
         leilao_id = self.criar(ana)

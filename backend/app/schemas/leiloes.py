@@ -22,6 +22,11 @@ class LeilaoCriar(BaseModel):
         return v.strip()
 
 
+class LeilaoEditar(LeilaoCriar):
+    """Edicao otimista: a versao vista ao abrir o formulario precisa continuar atual."""
+    versao: int = Field(ge=0)
+
+
 class LeilaoCriado(BaseModel):
     id: int
     item_id: int
@@ -67,6 +72,7 @@ class LeilaoDetalhe(BaseModel):
     preco_atual: str
     inicio: str
     termino_vigente: str
+    versao: int
 
 
 class ParticipanteSaida(BaseModel):

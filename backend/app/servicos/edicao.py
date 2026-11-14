@@ -1,9 +1,9 @@
 """Edicao de leilao agendado e lista "meus leiloes" do comitente.
 
-Edicao (DECISAO da equipe): so o comitente, so leilao agendado e antes do inicio, e
-so se ninguem alem dele entrou na sala OU se falta mais de 10 min para o inicio
-(regras.edicao_permitida). Mesmos campos e limites da criacao; a lista de fotos
-substitui a anterior. Preco, inicio e duracao novos valem do zero (sem lances ainda).
+Edicao (RF23): so o comitente, so leilao Agendado, antes do inicio e sem lances.
+Mesmos campos e limites da criacao; a lista de fotos substitui a anterior. O
+formulario envia a versao lida ao abrir; se o leilao mudou nesse meio tempo, a
+gravacao e recusada com 409 conflito_de_versao para o comitente revisar.
 
 Quem esta na sala ve a mudanca sozinho: a edicao incrementa leiloes.versao, e a
 tarefa de tempo real envia o snapshot novo (a tela recarrega o detalhe ao notar
@@ -21,17 +21,17 @@ from app.config import Configuracoes
 from app.erros import ErroApi
 from app.models import FotoItem, Item, Lance, Leilao, Participante
 from app.regras import cancelamento_permitido, edicao_permitida
-from app.schemas.leiloes import LeilaoCriar
+from app.schemas.leiloes import LeilaoEditar
 from app.servicos.leiloes import gravar_fotos, nao_encontrado, validar
 from app.tempo import agora, iso_utc
 
 
-def _outros_participantes(db: Session, leilao: Leilao) -> int:
-    return db.execute(select(func.count()).select_from(Participante).where(
-        Participante.leilao_id == leilao.id, Participante.usuario_id != leilao.comitente_id)).scalar_one()
+def _tem_lances(db: Session, leilao_id: int) -> bool:
+    return db.execute(select(func.count()).select_from(Lance).where(
+        Lance.leilao_id == leilao_id)).scalar_one() > 0
 
 
-def editar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int, dados: LeilaoCriar) -> dict:
+def editar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int, dados: LeilaoEditar) -> dict:
     leilao = db.execute(select(Leilao).where(Leilao.id == leilao_id).with_for_update()).scalar_one_or_none()
     if leilao is None:
         db.rollback()
@@ -39,13 +39,18 @@ def editar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int, dad
     if leilao.comitente_id != usuario_id:
         db.rollback()
         raise ErroApi(403, "edicao_nao_autorizada", "Só o comitente pode editar este leilão.")
-    instante = agora(db)  # depois da trava
-    if not edicao_permitida(leilao.estado, instante, leilao.inicio, _outros_participantes(db, leilao), cfg):
+    if dados.versao != leilao.versao:
         db.rollback()
-        minutos = cfg.edicao_antecedencia_segundos // 60
+        raise ErroApi(
+            409, "conflito_de_versao",
+            "Este leilão foi alterado desde que o formulário foi aberto. Revise os dados antes de salvar.",
+            {"versao_atual": leilao.versao},
+        )
+    instante = agora(db)  # depois da trava
+    if not edicao_permitida(leilao.estado, instante, leilao.inicio, _tem_lances(db, leilao.id)):
+        db.rollback()
         raise ErroApi(409, "edicao_nao_permitida",
-                      "Só dá para editar leilão agendado: sem ninguém na sala ou com mais de "
-                      f"{minutos} minutos até o início.")
+                      "Só é possível editar um leilão agendado, antes do início e sem lances.")
     try:
         v = validar(db, cfg, usuario_id, dados)
     except ErroApi:
@@ -63,7 +68,7 @@ def editar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int, dad
     return {"id": leilao_id, "item_id": leilao.item_id, "estado": "agendado", "versao": versao}
 
 
-def meus(db: Session, cfg: Configuracoes, usuario_id: int) -> dict:
+def meus(db: Session, usuario_id: int) -> dict:
     """Todos os leiloes do comitente (qualquer estado), mais recentes primeiro.
     DECISAO: sem paginacao; um usuario de demonstracao tem poucos leiloes."""
     capa = (select(FotoItem.url).where(FotoItem.item_id == Item.id)
@@ -84,6 +89,6 @@ def meus(db: Session, cfg: Configuracoes, usuario_id: int) -> dict:
         "preco_inicial": dinheiro.texto(l.preco_inicial), "preco_atual": dinheiro.texto(l.preco_atual),
         "inicio": iso_utc(l.inicio), "termino_vigente": iso_utc(l.termino_vigente),
         "total_lances": n_lances, "participantes": n_outros,
-        "pode_editar": edicao_permitida(l.estado, instante, l.inicio, n_outros, cfg),
+        "pode_editar": edicao_permitida(l.estado, instante, l.inicio, n_lances > 0),
         "pode_cancelar": cancelamento_permitido(l.estado, instante, l.termino_vigente, l.lider_id is not None),
     } for l, nome, categoria, capa_url, n_lances, n_outros in linhas]}

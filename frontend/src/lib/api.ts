@@ -95,6 +95,7 @@ export interface DetalheApi {
   preco_atual: string;
   inicio: string;
   termino_vigente: string;
+  versao: number;
 }
 
 /** GET /api/meus-leiloes: o servidor diz o que o comitente ainda pode fazer. */

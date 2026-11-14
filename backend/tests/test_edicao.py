@@ -24,12 +24,20 @@ class EdicaoTest(TesteLeilao):
         self.assertEqual(r.status_code, 201, r.text)
         return r.json()["id"]
 
+    def versao(self, cliente, leilao_id: int) -> int:
+        return cliente.get(f"/api/leiloes/{leilao_id}").json()["versao"]
+
+    def editar(self, cliente, leilao_id: int, **extra):
+        dados = self.dados(**extra)
+        dados["versao"] = self.versao(cliente, leilao_id)
+        return cliente.put(f"/api/leiloes/{leilao_id}", json=dados)
+
     def test_comitente_edita_sem_ninguem_na_sala(self):
         ana = self.cadastrar_e_entrar()
         leilao_id = self.novo_leilao(ana)  # comeca em 2 min
         self.entrar(ana, leilao_id)  # o proprio comitente na sala nao bloqueia
         antes = ana.get(f"/api/leiloes/{leilao_id}/sala").json()["versao"]
-        r = ana.put(f"/api/leiloes/{leilao_id}", json=self.dados())
+        r = self.editar(ana, leilao_id)
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["versao"], antes + 1)
         d = self.cliente().get(f"/api/leiloes/{leilao_id}").json()
@@ -44,22 +52,42 @@ class EdicaoTest(TesteLeilao):
     def test_outro_usuario_nao_edita(self):
         ana, bia = self.cadastrar_e_entrar(), self.cadastrar_e_entrar()
         leilao_id = self.novo_leilao(ana)
-        r = bia.put(f"/api/leiloes/{leilao_id}", json=self.dados())
+        r = bia.put(f"/api/leiloes/{leilao_id}", json={**self.dados(), "versao": 0})
         self.assertEqual(r.status_code, 403)
         self.assertEqual(r.json()["codigo"], "edicao_nao_autorizada")
-        self.assertEqual(self.cliente().put("/api/leiloes/999999", json=self.dados()).status_code, 401)
-        self.assertEqual(ana.put("/api/leiloes/999999", json=self.dados()).status_code, 404)
+        self.assertEqual(self.cliente().put("/api/leiloes/999999", json={**self.dados(), "versao": 0}).status_code, 401)
+        self.assertEqual(ana.put("/api/leiloes/999999", json={**self.dados(), "versao": 0}).status_code, 404)
 
-    def test_com_alguem_na_sala_so_edita_se_faltar_mais_de_10_min(self):
+    def test_participantes_na_sala_nao_impedem_edicao_enquanto_agendado(self):
         ana, bia = self.cadastrar_e_entrar(), self.cadastrar_e_entrar()
         perto, longe = self.criar_em(ana, 120), self.criar_em(ana, 1200)
         self.entrar(bia, perto)
         self.entrar(bia, longe)
-        r = ana.put(f"/api/leiloes/{perto}", json=self.dados(inicio=em(3000)))
-        self.assertEqual(r.status_code, 409)
-        self.assertEqual(r.json()["codigo"], "edicao_nao_permitida")
-        self.assertEqual(self.cliente().get(f"/api/leiloes/{perto}").json()["item"]["nome"], "Original")
-        r = ana.put(f"/api/leiloes/{longe}", json=self.dados())
+        for leilao_id in (perto, longe):
+            r = self.editar(ana, leilao_id, inicio=em(3000))
+            self.assertEqual(r.status_code, 200, r.text)
+            self.assertEqual(self.cliente().get(f"/api/leiloes/{leilao_id}").json()["item"]["nome"],
+                             "Bicicleta aro 29")
+
+    def test_conflito_de_versao_avisa_e_nao_sobrescreve(self):
+        ana = self.cadastrar_e_entrar()
+        leilao_id = self.novo_leilao(ana)
+        versao_inicial = self.versao(ana, leilao_id)
+        primeira = ana.put(f"/api/leiloes/{leilao_id}",
+                           json={**self.dados(nome="Primeira alteração"), "versao": versao_inicial})
+        self.assertEqual(primeira.status_code, 200, primeira.text)
+
+        segunda = ana.put(f"/api/leiloes/{leilao_id}",
+                          json={**self.dados(nome="Segunda alteração"), "versao": versao_inicial})
+        self.assertEqual(segunda.status_code, 409)
+        self.assertEqual(segunda.json()["codigo"], "conflito_de_versao")
+        self.assertEqual(segunda.json()["detalhes"]["versao_atual"], versao_inicial + 1)
+        atual = self.cliente().get(f"/api/leiloes/{leilao_id}").json()
+        self.assertEqual(atual["item"]["nome"], "Primeira alteração")
+        self.assertEqual(atual["versao"], versao_inicial + 1)
+
+        # Depois de revisar (lendo a versão nova), a edição é aceita.
+        r = self.editar(ana, leilao_id, nome="Segunda alteração")
         self.assertEqual(r.status_code, 200, r.text)
 
     def test_em_andamento_ou_cancelado_nao_edita(self):
@@ -68,13 +96,13 @@ class EdicaoTest(TesteLeilao):
         self.abrir_agora(aberto)
         self.assertEqual(ana.post(f"/api/leiloes/{cancelado}/cancelar").status_code, 200)
         for leilao_id in (aberto, cancelado):
-            r = ana.put(f"/api/leiloes/{leilao_id}", json=self.dados())
+            r = self.editar(ana, leilao_id)
             self.assertEqual(r.status_code, 409, r.text)
 
     def test_dados_invalidos_nao_mudam_nada(self):
         ana = self.cadastrar_e_entrar()
         leilao_id = self.novo_leilao(ana)
-        r = ana.put(f"/api/leiloes/{leilao_id}", json=self.dados(preco_inicial="0.10", nome="Outro nome"))
+        r = self.editar(ana, leilao_id, preco_inicial="0.10", nome="Outro nome")
         self.assertEqual(r.status_code, 422)
         d = self.cliente().get(f"/api/leiloes/{leilao_id}").json()
         self.assertEqual((d["item"]["nome"], d["preco_inicial"]), ("Bicicleta", "100.00"))
@@ -87,7 +115,7 @@ class EdicaoTest(TesteLeilao):
         self.assertEqual(r.status_code, 201, r.text)
         leilao_id = r.json()["id"]
         nova = ana.post("/api/fotos", files={"arquivo": ("b.png", PNG, "image/png")}).json()["referencia"]
-        r = ana.put(f"/api/leiloes/{leilao_id}", json=self.dados(fotos=[refs[2], nova]))
+        r = self.editar(ana, leilao_id, fotos=[refs[2], nova])
         self.assertEqual(r.status_code, 200, r.text)
         fotos = self.cliente().get(f"/api/leiloes/{leilao_id}").json()["item"]["fotos"]
         self.assertEqual(fotos, [{"url": f"/api/fotos/{refs[2]}", "ordem": 0}, {"url": f"/api/fotos/{nova}", "ordem": 1}])
