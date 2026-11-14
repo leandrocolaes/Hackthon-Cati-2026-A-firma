@@ -99,3 +99,13 @@ Entra quando o requisito pedir, não antes:
 ## Decisões da equipe
 
 Ver a seção 2 de [`documento_de_requisitos.md`](documento_de_requisitos.md).
+
+### Base de autenticacao (F00 parcial)
+
+Os modelos de usuario e sessao e as decisoes estao em
+[`docs/autenticacao.md`](docs/autenticacao.md). As tabelas ainda dependem da
+migracao planejada para o proximo commit; cadastro e login ainda nao estao implementados.
+
+Permitimos varias sessoes por usuario, cada uma com expiracao independente.
+As regras de lance serao garantidas por transacao no banco, de modo que varias
+sessoes nao afetem a consistencia. Sair em um aparelho nao encerra os demais.
