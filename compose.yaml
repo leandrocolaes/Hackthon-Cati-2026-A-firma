@@ -51,7 +51,7 @@ services:
     build: ./frontend
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-8080}:80"           # a única porta aberta para o mundo; 8080 é a exigida pela organização na VM
+      - "8080:80"           # a única porta aberta para o mundo; 8080 é a exigida pela organização na VM
     depends_on:
       - backend
 
