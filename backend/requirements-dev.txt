@@ -1,0 +1,3 @@
+# Dependencias so para testes (nao vao para a imagem do backend).
+-r requirements.txt
+httpx==0.27.*

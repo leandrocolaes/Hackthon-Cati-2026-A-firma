@@ -1,7 +1,8 @@
-"""Ponto de entrada da API. Tem só duas rotas, para provar as conexões:
+"""Ponto de entrada da API.
 
 - GET /api/health  → frontend ↔ backend ↔ banco (HTTP)
 - WS  /api/ws      → frontend ↔ backend em tempo real (WebSocket)
+- rotas de produto em app/routers/ (contrato em docs/contratos.md)
 
 Todas as rotas começam com /api porque é assim que o Nginx sabe
 o que mandar para cá (o resto é o site React).
@@ -12,9 +13,13 @@ from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app import erros
 from app.db import get_db
+from app.routers import auth
 
 app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
+erros.registrar(app)
+app.include_router(auth.router)
 
 
 @app.get("/api/health")

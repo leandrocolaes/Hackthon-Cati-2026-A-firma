@@ -130,7 +130,10 @@ Ver a seção 2 de [`documento_de_requisitos.md`](documento_de_requisitos.md).
 
 Os modelos de usuario e sessao e as decisoes estao em
 [`docs/autenticacao.md`](docs/autenticacao.md). A primeira migracao cria as tabelas de autenticacao; aplique-a pelos comandos abaixo.
-Cadastro e login ainda nao estao implementados.
+Cadastro, login, logout e `GET /api/eu` estao implementados (F03), com as rotas,
+respostas e erros de [`docs/contratos.md`](docs/contratos.md). O cadastro nao abre
+sessao: a tela faz o login em seguida. Acoes (POST/DELETE) renovam a sessao;
+leituras (GET) nao renovam, para que a sessao expire por inatividade humana.
 
 Permitimos varias sessoes por usuario, cada uma com expiracao independente.
 As regras de lance serao garantidas por transacao no banco, de modo que varias
@@ -207,8 +210,7 @@ alteração controlada da senha no banco; não apague o volume para corrigir iss
 
 As variáveis de domínio em `.env.example` são carregadas e validadas por
 `app/config.py`. Os próximos cartões devem consumir essa configuração: ainda não
-há seed, cadastro, login ou criação de leilões. Configurar limites não implementa
-essas funcionalidades.
+há seed nem criação de leilões. Configurar limites não implementa essas funcionalidades.
 
 O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
 Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
