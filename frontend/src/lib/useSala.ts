@@ -1,10 +1,14 @@
 // Estado da sala ao vivo (RF09; docs/contratos.md, "Sala" e "WS").
 //
-// 1) Entra na sala (POST /participantes: cria ou reaproveita a participação).
-// 2) Lê o snapshot (GET /sala) e abre o WebSocket, que manda o snapshot sempre que a
-//    versão do leilão muda (lance, abertura, fechamento, cancelamento).
-// 3) Se o WebSocket cair, reconecta sozinho e, enquanto isso, consulta por polling.
-// 4) Fechamento 4401 = sessão expirada: avisa o login.
+// 1) Lê o snapshot (GET /sala). Só se o servidor responder 403 (ainda não participa)
+//    entra na sala (POST /participantes). Assim recarregar a página ou reconectar não
+//    chama POST de novo: não renova a sessão só por assistir (RF24, seção 2.1).
+// 2) Abre o WebSocket, que manda o snapshot ao conectar e sempre que a versão do
+//    leilão muda (lance, abertura, fechamento, cancelamento, edição).
+// 3) Se o WebSocket cair, reconecta sozinho; ao reabrir, o primeiro snapshot já é o
+//    estado confirmado atual. Enquanto isso, consulta por polling de reserva.
+// 4) Snapshot com versão MENOR que a já exibida é descartado (nunca volta no tempo).
+// 5) Fechamento 4401 = sessão expirada: avisa o login.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErroApi } from "./api";
 
@@ -86,11 +90,18 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
       };
     }
 
-    api.post(`/api/leiloes/${leilaoId}/participantes`)
-      .then(() => { if (!encerrada) { recarregar(); conectar(); } })
+    const falhou = (e: ErroApi) => {
+      if (e.status === 401) aoExpirar();
+      setErro(e.message);
+    };
+    api.get<Snapshot>(`/api/leiloes/${leilaoId}/sala`)
+      .then((s) => { if (!encerrada) { aplicar(s); setErro(""); conectar(); } })
       .catch((e: ErroApi) => {
-        if (e.status === 401) aoExpirar();
-        setErro(e.message);
+        if (e.status !== 403 || e.codigo !== "participante_ausente") return falhou(e);
+        // Primeira entrada nesta sala: cria a participação (ação do usuário, renova a sessão).
+        api.post(`/api/leiloes/${leilaoId}/participantes`)
+          .then(() => { if (!encerrada) { recarregar(); conectar(); } })
+          .catch(falhou);
       });
     // Polling de reserva: só consulta enquanto o WebSocket NÃO está aberto.
     const reserva = window.setInterval(() => {

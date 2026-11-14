@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Leilao } from "../classes/Leilao";
 import { AcoesDoComitente } from "../components/AcoesDoComitente";
 import { FotoLeilao } from "../components/FotoLeilao";
@@ -13,7 +13,9 @@ import { useRelogio } from "../lib/useRelogio";
 export function LeilaoDetalhe() {
   const { id } = useParams();
   const agora = useRelogio();
-  const [naSala, setNaSala] = useState(false);
+  // RF24: "estou na sala" fica na URL (?sala=1): recarregar a página volta para a sala.
+  const [parametros, setParametros] = useSearchParams();
+  const naSala = parametros.get("sala") === "1";
   const [fotoAtual, setFotoAtual] = useState(0);
   const { usuario } = useAuth();
   const navegar = useNavigate();
@@ -47,11 +49,11 @@ export function LeilaoDetalhe() {
 
   function entrarNaSala() {
     if (!usuario) {
-      // A sala exige login: vai para o login e volta para cá depois.
-      navegar(`/entrar?voltar=${encodeURIComponent(local.pathname)}`);
+      // A sala exige login: vai para o login e volta para a sala depois.
+      navegar(`/entrar?voltar=${encodeURIComponent(`${local.pathname}?sala=1`)}`);
       return;
     }
-    setNaSala(true);
+    setParametros({ sala: "1" });
   }
 
   if (situacao === "carregando") {

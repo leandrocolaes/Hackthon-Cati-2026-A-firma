@@ -107,3 +107,26 @@ class TempoRealTest(TesteLeilao):
             ws.receive_json()
         depois = self.banco.sql("SELECT expira_em FROM sessoes WHERE usuario_id=:u", u=self.carla.usuario_id).scalar_one()
         self.assertEqual(antes, depois)
+
+    def test_reconectar_volta_ao_estado_atual_sem_criar_participante_nem_renovar(self):
+        """RF24: cair, perder um lance e reconectar entrega o estado confirmado mais novo."""
+        self.preparar()
+        sql_part = "SELECT count(*) FROM participantes WHERE leilao_id=:l"
+        sql_sessao = "SELECT expira_em FROM sessoes WHERE usuario_id=:u"
+        participantes = self.banco.sql(sql_part, l=self.leilao).scalar_one()
+        sessao = self.banco.sql(sql_sessao, u=self.carla.usuario_id).scalar_one()
+        with self.ws(self.carla, self.leilao) as ws:
+            antes = ws.receive_json()["estado"]["versao"]
+        # Enquanto a Carla esta desconectada, o Bruno da um lance.
+        r = self.bruno.post(f"/api/leiloes/{self.leilao}/lances", json={"valor": "100.00", "chave": str(uuid4())})
+        self.assertEqual(r.status_code, 201, r.text)
+        for _ in range(3):  # tres quedas e reconexoes, com a consulta de snapshot da tela
+            with self.ws(self.carla, self.leilao) as ws:
+                estado = ws.receive_json()["estado"]
+                self.assertEqual(estado["versao"], antes + 1)  # ja chega em dia
+                self.assertEqual(estado["preco_atual"], "100.00")
+            self.assertEqual(self.carla.get(f"/api/leiloes/{self.leilao}/sala").json()["versao"], antes + 1)
+        self.assertEqual(self.banco.sql(sql_part, l=self.leilao).scalar_one(), participantes)
+        self.assertEqual(self.banco.sql(sql_sessao, u=self.carla.usuario_id).scalar_one(), sessao)
+        self.assertEqual(self.banco.sql("SELECT count(*) FROM lances WHERE leilao_id=:l",
+                                        l=self.leilao).scalar_one(), 1)
