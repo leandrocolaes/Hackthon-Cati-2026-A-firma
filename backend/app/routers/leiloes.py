@@ -5,6 +5,7 @@
     GET  /api/leiloes?pagina=1&por_pagina=20  -> catalogo publico
     GET  /api/leiloes/{id}                    -> detalhe publico
     POST /api/leiloes/{id}/participantes      -> 200 {id, numero, apelido}
+    POST /api/leiloes/{id}/cancelar           -> 200 {id, estado, encerrado_em, versao}
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -14,7 +15,7 @@ from app import dinheiro
 from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
 from app.schemas.leiloes import Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, ParticipanteSaida
-from app.servicos import leiloes, participantes
+from app.servicos import cancelamento, leiloes, participantes
 from app.sessoes import UsuarioLogado, usuario_atual
 
 router = APIRouter(prefix="/api", tags=["leilões"])
@@ -59,3 +60,9 @@ def detalhe(leilao_id: int, db: Session = Depends(get_db)):
 @router.post("/leiloes/{leilao_id}/participantes", response_model=ParticipanteSaida)
 def entrar(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual), db: Session = Depends(get_db)):
     return participantes.entrar(db, leilao_id, usuario.id)
+
+
+@router.post("/leiloes/{leilao_id}/cancelar")
+def cancelar(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual), db: Session = Depends(get_db)):
+    """RF08: so o comitente; o registro continua existindo como "cancelado"."""
+    return cancelamento.cancelar(db, leilao_id, usuario.id)
