@@ -113,7 +113,7 @@ Entra quando o requisito pedir, não antes:
 |---|---|
 | Alembic (migrações) | Já configurado para as tabelas de autenticação; ver comandos abaixo |
 | bcrypt | Login e sessões (RF01, RF02); sessão opaca persistida, sem JWT neste contrato |
-| Pydantic Settings | Limites configuráveis (RF06) |
+| Pydantic Settings | Já configurado em `backend/app/config.py` para limites e ambiente (RF06) |
 | React Router | A segunda página |
 | Tailwind | Quando formos estilizar |
 | Pytest, Vitest, Ruff, ESLint | Testes da concorrência e dos lances (RF11, RF12) |
@@ -192,7 +192,9 @@ não marque uma versão como aplicada sem verificar que corresponde ao banco.
 O Compose injeta o `.env` no backend e define `DATABASE_URL` explicitamente com
 `db:5432`. Esse endereço é usado tanto pela API quanto por Alembic dentro do
 container. Fora do Docker, exporte `DATABASE_URL` com `127.0.0.1:5433`;
-o Alembic não carrega o `.env` automaticamente.
+API e Alembic usam a configuração central, que carrega o `.env` da raiz; variáveis
+exportadas no ambiente têm prioridade. `DATABASE_URL` local deve estar exportada
+ou definida explicitamente nesse arquivo (não é montada a partir de POSTGRES_*).
 
 Use uma senha com os caracteres permitidos em `.env.example`, pois o Compose
 monta a URL de conexão diretamente. A senha do PostgreSQL é definida quando o
@@ -200,9 +202,10 @@ volume é criado: mudar só o `.env` depois não altera a senha já gravada no b
 Se os valores divergirem, restaure a configuração correspondente ou faça uma
 alteração controlada da senha no banco; não apague o volume para corrigir isso.
 
-As variáveis opcionais de domínio em `.env.example` antecipam funcionalidades
-futuras. Neste estágio não há `app/config.py`, `app/seed.py`, cadastro ou login;
-comentar/descomentar essas opções não implementa essas funcionalidades.
+As variáveis de domínio em `.env.example` são carregadas e validadas por
+`app/config.py`. Os próximos cartões devem consumir essa configuração: ainda não
+há seed, cadastro, login ou criação de leilões. Configurar limites não implementa
+essas funcionalidades.
 
 O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
 Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
@@ -245,3 +248,57 @@ para as tabelas de teste. Sem `TEST_DATABASE_URL`, os seis testes são ignorados
 isso não significa que as restrições passaram. A execução real continua pendente
 nesta entrega, que foi validada apenas offline. Estes testes não validam regras de
 lance, concorrência ou recuperação do sistema, pertencentes aos próximos cartões.
+
+### Configuração central e contratos compartilhados (F00 parcial)
+
+API e Alembic usam `obter_configuracoes()` de `app/config.py`. O `.env` da raiz
+é localizado a partir do arquivo Python, sem depender da pasta do terminal;
+variáveis de ambiente prevalecem. No container, o Compose injeta as variáveis,
+incluindo `DATABASE_URL` com `db:5432`. Fora dele, use `127.0.0.1:5433`.
+`DATABASE_URL` é obrigatória, usa `postgresql+psycopg` e não tem credencial padrão.
+Não imprima o objeto completo nem exponha sua configuração como resposta pública.
+
+A configuração é imutável e carregada uma vez por processo. Limites inválidos
+impedem inicialização: mínimos maiores que máximos, valores não positivos quando
+exigidos, listas vazias/repetidas e limites acima das colunas do banco. Dinheiro
+usa Decimal; categorias são separadas por `|` e tipos de foto por vírgula.
+As variáveis e padrões estão em `.env.example`; senha/token não pertencem aos logs.
+
+Para desenvolver o fluxo mínimo antes de integrar fotos, adicione ao `.env`:
+
+```dotenv
+ITEM_MIN_PHOTOS=0
+```
+
+O padrão continua **3**, e vale `0 <= ITEM_MIN_PHOTOS <= ITEM_MAX_PHOTOS`.
+Zero fotos é uma simplificação temporária; a entrega do Núcleo exige pelo menos
+três fotos válidas na nuvem. O limite padrão por foto é **5.242.880 bytes (5 MiB)**.
+Nome tem 3–100 caracteres, descrição 10–2.000, fotos 3–10, preço inicial mínimo
+R$ 1,00, antecedência 1 minuto–30 dias e duração 1 minuto–7 dias.
+
+Após alterar o `.env`, recrie os serviços afetados, pois `restart` sozinho não
+recarrega variáveis injetadas pelo Compose. Na VM, se a porta 80 estiver ocupada,
+defina `HTTP_PORT=8080` no `.env` **antes** de recriar o frontend:
+
+```bash
+docker compose up -d --build --force-recreate backend frontend
+```
+
+Esse comando é uma instrução; o `.env` e os containers da VM não foram alterados
+nesta entrega. A porta padrão do Compose é 80; a variável HTTP_PORT controla o
+mapeamento, não a porta interna do Nginx nem a do Vite.
+
+[Contratos de integração](docs/contratos.md): rotas, exemplos de entrada/saída,
+validação com fuso, catálogo, erros, replay exato, sala e comunicação por versão
+consultada pela API a cada segundo. São contratos para implementação futura;
+nenhuma nova rota, schema ou handler de validação foi criado neste commit.
+
+Para testar somente a configuração sem banco, dentro de `backend/`:
+
+```bash
+python -m unittest discover -s tests -p test_config.py -v
+```
+
+Nesta entrega passaram 11 testes de configuração. Na descoberta completa, os
+seis testes PostgreSQL continuam ignorados sem TEST_DATABASE_URL. A aplicação
+real das migrações e a validação do Compose em execução continuam pendentes.

@@ -266,3 +266,17 @@ de TEST_DATABASE_URL. Nao houve validacao real das restricoes nem aplicacao das
 migracoes em PostgreSQL. Nao havia Docker/PostgreSQL disponivel; a tentativa de
 instalar PostgreSQL temporario via pgserver nao encontrou distribuicao compativel.
 Essa pendencia impede declarar a base validada em banco real ou o F00 concluido.
+
+## Configuracao e contratos compartilhados
+
+app/config.py agora centraliza limites aprovados, carregando o .env da raiz com
+prioridade do ambiente e cache por processo. Regras de criacao e sala continuam
+nao implementadas. docs/contratos.md documenta rotas, exemplos e codigos de erro,
+sem schemas de produto. Usar Decimal para preco minimo e limites compativeis com
+VARCHAR(100)/VARCHAR(2000). Alteracao de configuracao exige reinicio/recriacao.
+
+ITEM_MIN_PHOTOS aceita 0 na versao minima; padrao 3 e intervalo 0 <= min <= max.
+O minimo de tres fotos e a nuvem continuam obrigatorios para a entrega do Nucleo.
+A API consultara versoes a cada 1 s para atualizar sockets no F12; participante
+novo nao altera versao, assim como recusa/replay. Abertura, lance aceito com sua
+prorrogacao, cancelamento e fechamento incrementam versao atomicamente.

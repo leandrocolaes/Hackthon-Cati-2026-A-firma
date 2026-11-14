@@ -107,8 +107,8 @@ nao criar worker nem rotina de limpeza neste commit.
 3. F03: validacoes, bcrypt, cadastro, login, cookie, autorizacao, renovacao, logout e telas.
 
 A revisao 0002_dominio_leiloes acrescenta item, fotos, leilao, lances, tentativas
-e participante, conforme docs/dominio.md. Configuracao, contratos gerais, base
-do frontend e validacao em banco real do F00 continuam pendentes.
+e participante, conforme docs/dominio.md. Configuracao central e contratos gerais estao em app/config.py e docs/contratos.md.
+Base do frontend e validacao em banco real do F00 continuam pendentes.
 
 ## Validacao do segundo commit
 
@@ -126,11 +126,13 @@ no banco. Esses cenarios devem ser executados antes de considerar a base validad
 
 No host, o PostgreSQL usa `127.0.0.1:5433`; dentro do Compose, usa `db:5432`.
 Alembic reutiliza `DATABASE_URL`, definida pelo Compose ou exportada no terminal.
-Nao carrega `.env` por conta propria. O Dockerfile copia configuracao e migracoes
+Agora API e Alembic leem o `.env` da raiz pela configuracao central; o ambiente
+tem prioridade, e DATABASE_URL local deve ser definida explicitamente. O Dockerfile copia configuracao e migracoes
 para que `docker compose run --rm backend alembic upgrade head` funcione.
 
 Rodar `bash scripts/verificar.sh env` antes da preparacao verifica o ambiente;
 o script HTTP e o healthcheck nao substituem `alembic current` / `alembic check`.
 A atualizacao de schema e manual e nao usa o mecanismo de restart dos containers.
-As variaveis de sessao comentadas em `.env.example` serao conectadas ao F03;
-esta entrega continua sem configuracao de dominio, seed ou endpoints novos.
+As variaveis de sessao comentadas em `.env.example` ja sao carregadas e validadas
+por app/config.py; o F03 implementara seu uso em autenticacao. Seed, endpoints,
+cookies e hashes de senha continuam fora desta entrega de configuracao.

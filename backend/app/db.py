@@ -5,12 +5,12 @@
 - Base: classe-mãe dos futuros models (tabelas).
 - get_db: entrega uma sessão para cada requisição e fecha no final.
 """
-import os
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+from app.config import obter_configuracoes
+
+DATABASE_URL = obter_configuracoes().database_url.get_secret_value()
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
