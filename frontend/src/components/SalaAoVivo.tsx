@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ErroApi, NOME_DO_ESTADO, novaChave } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatarBRL, formatarDataHora, formatarHora } from "../lib/format";
-import { useSala, type Pessoa } from "../lib/useSala";
+import { useSala, type ModoSala, type Pessoa } from "../lib/useSala";
 import { SeloEstado } from "./SeloEstado";
 
 // DECISAO: textos para os códigos de impedimento do contrato.
@@ -23,9 +23,11 @@ function contagem(ms: number): string {
   return `${seg}s`;
 }
 
-export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAlterar?: () => void }) {
+export function SalaAoVivo({ leilaoId, aoAlterar, modo = "participante" }:
+  { leilaoId: number; aoAlterar?: () => void; modo?: ModoSala }) {
   const { sessaoExpirou } = useAuth();
-  const { sala, erro, aoVivo, deslocamento, recarregar } = useSala(leilaoId, true, sessaoExpirou);
+  const { sala, erro, aoVivo, deslocamento, recarregar } = useSala(leilaoId, true, sessaoExpirou, modo);
+  const espectador = modo === "espectador";
   // Versão nova com o leilão ainda agendado = o comitente editou (nada mais muda a versão
   // antes da abertura). A página recarrega nome, fotos e descrição, e mostra um aviso.
   const anterior = useRef<{ versao: number; estado: string } | null>(null);
@@ -46,8 +48,9 @@ export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAltera
 
   if (!sala) return <p className={erro ? "aviso-sala" : "detalhe__legenda"}>{erro || "Entrando na sala…"}</p>;
 
+  // Espectador só vê apelidos; "Você" só existe para quem participa.
   const quem = (p: Pessoa | null) =>
-    !p ? "—" : p.participante_id === sala.meu_participante_id ? "Você" : p.apelido;
+    !p ? "—" : !espectador && p.participante_id === sala.meu_participante_id ? "Você" : p.apelido;
   const final = ["vendido", "encerrado_sem_lances", "cancelado"].includes(sala.estado);
   const alvo = sala.estado === "agendado" ? sala.inicio : sala.termino_vigente;
   const restante = Date.parse(alvo) - (Date.now() + deslocamento);
@@ -55,7 +58,9 @@ export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAltera
   return (
     <section className="sala" aria-label="Sala do leilão">
       <div className="detalhe__topo">
-        <p className="detalhe__categoria">Sala ao vivo {aoVivo ? "●" : "○ reconectando…"}</p>
+        <p className="detalhe__categoria">
+          {espectador ? "Assistindo como espectador" : "Sala ao vivo"} {aoVivo ? "●" : "○ reconectando…"}
+        </p>
         <SeloEstado estado={NOME_DO_ESTADO[sala.estado] ?? "Agendado"} />
       </div>
 
@@ -103,7 +108,10 @@ export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAltera
         <div><dt>Término vigente</dt><dd>{formatarDataHora(sala.termino_vigente)}</dd></div>
       </dl>
 
-      {sala.pode_dar_lance ? (
+      {/* RF25: espectador não recebe controles de lance nem menus de participante/comitente. */}
+      {espectador ? (
+        erro && <p className="aviso-sala">{erro}</p>
+      ) : sala.pode_dar_lance ? (
         <FormLance leilaoId={leilaoId} minimo={sala.lance_minimo} aoMudar={recarregar} aoExpirar={sessaoExpirou} />
       ) : (
         !final && sala.motivo_impedimento && <p className="aviso-sala">{IMPEDIMENTOS[sala.motivo_impedimento]}</p>
@@ -116,8 +124,8 @@ export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAltera
         <p className="detalhe__legenda">Nenhum lance ainda.</p>
       ) : (
         <ol className="sala__lances">
-          {sala.ultimos_lances.map((l) => (
-            <li key={l.id}>
+          {sala.ultimos_lances.map((l, i) => (
+            <li key={l.id ?? `${l.criado_em}-${i}`}>
               <span>{quem(l)}</span>
               <strong>{formatarBRL(l.valor)}</strong>
               <small>{formatarDataHora(l.criado_em)}</small>

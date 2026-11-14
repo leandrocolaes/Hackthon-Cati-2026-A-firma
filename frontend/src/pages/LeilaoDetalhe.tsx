@@ -14,8 +14,10 @@ export function LeilaoDetalhe() {
   const { id } = useParams();
   const agora = useRelogio();
   // RF24: "estou na sala" fica na URL (?sala=1): recarregar a página volta para a sala.
+  // RF25: ?sala=assistir = modo espectador (sem login, sem virar participante).
   const [parametros, setParametros] = useSearchParams();
   const naSala = parametros.get("sala") === "1";
+  const assistindo = parametros.get("sala") === "assistir";
   const [fotoAtual, setFotoAtual] = useState(0);
   const { usuario } = useAuth();
   const navegar = useNavigate();
@@ -128,7 +130,7 @@ export function LeilaoDetalhe() {
           )}
 
           {/* Com a sala aberta, o preço ao vivo fica na sala (este seria o da hora do carregamento). */}
-          {!naSala && (
+          {!naSala && !assistindo && (
             <div className="detalhe__preco">
               <span>{leilao.rotuloPreco}</span>
               <strong>{formatarBRL(leilao.precoEmDestaque)}</strong>
@@ -155,18 +157,37 @@ export function LeilaoDetalhe() {
             </div>
           </dl>
 
-          {meu && <AcoesDoComitente leilao={meu} aoMudar={recarregar} />}
+          {/* RF25: assistindo, nem o comitente vê os menus de comitente. */}
+          {meu && !assistindo && <AcoesDoComitente leilao={meu} aoMudar={recarregar} />}
 
           {naSala && usuario ? (
             <SalaAoVivo leilaoId={leilao.id} aoAlterar={recarregar} />
+          ) : assistindo ? (
+            <>
+              <SalaAoVivo leilaoId={leilao.id} aoAlterar={recarregar} modo="espectador" />
+              <button type="button" className="botao-link" onClick={() => setParametros({})}>
+                Parar de assistir
+              </button>
+            </>
           ) : (
-            <button
-              type="button"
-              className="botao botao--principal botao--largo"
-              onClick={entrarNaSala}
-            >
-              Entrar na sala
-            </button>
+            <>
+              <button
+                type="button"
+                className="botao botao--principal botao--largo"
+                onClick={entrarNaSala}
+              >
+                Entrar na sala
+              </button>
+              {leilao.emAndamento && (
+                <button
+                  type="button"
+                  className="botao botao--largo"
+                  onClick={() => setParametros({ sala: "assistir" })}
+                >
+                  Assistir sem participar
+                </button>
+              )}
+            </>
           )}
 
           <p className="detalhe__rodape">

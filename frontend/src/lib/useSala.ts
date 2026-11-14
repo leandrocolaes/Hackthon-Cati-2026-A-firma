@@ -9,13 +9,17 @@
 //    estado confirmado atual. Enquanto isso, consulta por polling de reserva.
 // 4) Snapshot com versão MENOR que a já exibida é descartado (nunca volta no tempo).
 // 5) Fechamento 4401 = sessão expirada: avisa o login.
+// Modo espectador (RF25): sem login e sem participação. Lê GET /espectador e abre o WS
+// com ?modo=espectador; recebe o snapshot público (só apelidos) até o resultado.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErroApi } from "./api";
 
 export interface Pessoa {
-  participante_id: number;
+  participante_id?: number; // ausente no snapshot público do espectador
   apelido: string;
 }
+
+export type ModoSala = "participante" | "espectador";
 
 export interface Snapshot {
   id: number;
@@ -31,19 +35,24 @@ export interface Snapshot {
   lance_minimo: string;
   lider: Pessoa | null;
   total_lances: number;
-  ultimos_lances: (Pessoa & { id: number; valor: string; criado_em: string })[];
+  ultimos_lances: (Pessoa & { id?: number; valor: string; criado_em: string })[];
   resultado: { vencedor: Pessoa; valor: string } | null;
-  meu_participante_id: number;
-  sou_comitente: boolean;
-  pode_dar_lance: boolean;
-  motivo_impedimento: string | null;
+  // Só no snapshot do participante (o do espectador não tem nada pessoal):
+  meu_participante_id?: number;
+  sou_comitente?: boolean;
+  pode_dar_lance?: boolean;
+  motivo_impedimento?: string | null;
+  espectador?: boolean;
 }
 
 // DECISAO: reconexão e polling de reserva a cada 2 s.
 const RECONECTAR_MS = 2000;
 const RESERVA_MS = 2000;
 
-export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void) {
+export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void,
+  modo: ModoSala = "participante") {
+  const espectador = modo === "espectador";
+  const caminhoSnapshot = `/api/leiloes/${leilaoId}/${espectador ? "espectador" : "sala"}`;
   const [sala, setSala] = useState<Snapshot | null>(null);
   const [erro, setErro] = useState("");
   const [aoVivo, setAoVivo] = useState(false);
@@ -60,13 +69,13 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
   }, []);
 
   const recarregar = useCallback(() => {
-    api.get<Snapshot>(`/api/leiloes/${leilaoId}/sala`)
+    api.get<Snapshot>(caminhoSnapshot)
       .then((s) => { aplicar(s); setErro(""); })
       .catch((e: ErroApi) => {
-        if (e.status === 401) aoExpirar();
+        if (e.status === 401 && !espectador) aoExpirar();
         setErro(e.message);
       });
-  }, [leilaoId, aplicar, aoExpirar]);
+  }, [caminhoSnapshot, espectador, aplicar, aoExpirar]);
 
   useEffect(() => {
     if (!ativa) return;
@@ -76,7 +85,8 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
 
     function conectar() {
       const protocolo = location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${protocolo}://${location.host}/api/leiloes/${leilaoId}/ws`);
+      const sufixo = espectador ? "?modo=espectador" : "";
+      ws = new WebSocket(`${protocolo}://${location.host}/api/leiloes/${leilaoId}/ws${sufixo}`);
       ws.onopen = () => setAoVivo(true);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
@@ -86,6 +96,7 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
         setAoVivo(false);
         if (encerrada) return;
         if (e.code === 4401) { aoExpirar(); return; }
+        if (e.code === 4409) { setErro("Só dá para assistir a leilões em andamento."); return; }
         reconexao = window.setTimeout(conectar, RECONECTAR_MS);
       };
     }
@@ -94,10 +105,10 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
       if (e.status === 401) aoExpirar();
       setErro(e.message);
     };
-    api.get<Snapshot>(`/api/leiloes/${leilaoId}/sala`)
+    api.get<Snapshot>(caminhoSnapshot)
       .then((s) => { if (!encerrada) { aplicar(s); setErro(""); conectar(); } })
       .catch((e: ErroApi) => {
-        if (e.status !== 403 || e.codigo !== "participante_ausente") return falhou(e);
+        if (espectador || e.status !== 403 || e.codigo !== "participante_ausente") return falhou(e);
         // Primeira entrada nesta sala: cria a participação (ação do usuário, renova a sessão).
         api.post(`/api/leiloes/${leilaoId}/participantes`)
           .then(() => { if (!encerrada) { recarregar(); conectar(); } })
@@ -114,7 +125,7 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void)
       window.clearTimeout(reconexao);
       ws?.close();
     };
-  }, [ativa, leilaoId, recarregar, aplicar, aoExpirar]);
+  }, [ativa, leilaoId, espectador, caminhoSnapshot, recarregar, aplicar, aoExpirar]);
 
   return { sala, erro, aoVivo, deslocamento, recarregar };
 }
