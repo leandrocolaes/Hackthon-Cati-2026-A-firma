@@ -42,6 +42,12 @@ function paginaDaUrl(valor: string | null): number {
   return Number.isInteger(numero) && numero > 0 ? numero : 1;
 }
 
+/** RF21: aceita "1.234,50" (vírgula decimal) e "1234.50"; a API valida o resto (422). */
+function precoParaApi(texto: string): string {
+  const limpo = texto.trim();
+  return limpo.includes(",") ? limpo.replace(/\./g, "").replace(",", ".") : limpo;
+}
+
 /** Espera o usuário parar de digitar antes de consultar a API. */
 function useValorAdiado<T>(valor: T, atraso: number): T {
   const [adiado, setAdiado] = useState(valor);
@@ -87,8 +93,8 @@ export function Home() {
     if (buscaAdiada.trim()) p.set("busca", buscaAdiada.trim());
     if (categoria !== "todas") p.set("categoria", categoria);
     if (estado !== "todos") p.set("estado", estado);
-    if (precoMin.trim()) p.set("preco_min", precoMin.trim());
-    if (precoMax.trim()) p.set("preco_max", precoMax.trim());
+    if (precoMin.trim()) p.set("preco_min", precoParaApi(precoMin));
+    if (precoMax.trim()) p.set("preco_max", precoParaApi(precoMax));
     if (ordenar !== "padrao") p.set("ordenar", ordenar);
     return p.toString();
   }, [pagina, buscaAdiada, categoria, estado, precoMin, precoMax, ordenar]);
@@ -232,7 +238,7 @@ export function Home() {
               type="search"
               value={busca}
               onChange={(e) => atualizar({ busca: e.target.value })}
-              placeholder="Nome do item..."
+              placeholder="Parte do nome do item..."
               autoComplete="off"
             />
           </label>
