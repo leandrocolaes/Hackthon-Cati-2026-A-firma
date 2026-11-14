@@ -345,3 +345,15 @@ reinícios junto com o volume do banco (`dbdata`).
 - `GET /api/fotos/{referencia}` é público (catálogo e detalhe são públicos) e manda
   o navegador guardar a imagem em cache, porque o conteúdo de uma referência nunca muda.
 - Limitação conhecida: fotos enviadas e não usadas em nenhum leilão ficam no banco.
+
+## Edição e "meus leilões"
+
+DECISÃO: o comitente pode editar um leilão **agendado** (antes do início) se ninguém
+além dele entrou na sala **ou** se falta mais de 10 minutos para o início
+(`AUCTION_EDIT_MIN_ADVANCE_SECONDS`, padrão 600). A edição usa os mesmos limites da
+criação e a mesma trava do lance e da entrada na sala, então uma entrada simultânea
+não escapa da regra. Quem já está na sala recebe a mudança na hora, com um aviso.
+
+`GET /api/meus-leiloes` lista os leilões do usuário em qualquer estado, com
+`pode_editar` e `pode_cancelar` calculados pelo servidor; a tela só mostra os botões
+quando o servidor permite, e o servidor confere de novo ao receber o pedido.

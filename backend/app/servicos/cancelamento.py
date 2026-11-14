@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.erros import ErroApi
 from app.models import Leilao
+from app.regras import cancelamento_permitido
 from app.servicos.leiloes import nao_encontrado
 from app.tempo import agora, iso_utc
 
@@ -26,11 +27,7 @@ def cancelar(db: Session, leilao_id: int, usuario_id: int) -> dict:
         db.rollback()
         raise ErroApi(403, "cancelamento_nao_autorizado", "Só o comitente pode cancelar este leilão.")
     instante = agora(db)  # depois da trava
-    # DECISAO: em andamento so ate o termino. Um leilao vencido sem lances deve virar
-    # "encerrado sem lances" (worker), e nao "cancelado", nao importa quem chegue antes.
-    permitido = leilao.estado == "agendado" or (
-        leilao.estado == "em_andamento" and leilao.lider_id is None and instante < leilao.termino_vigente)
-    if not permitido:
+    if not cancelamento_permitido(leilao.estado, instante, leilao.termino_vigente, leilao.lider_id is not None):
         db.rollback()
         mensagem = ("Leilão com lances não pode ser cancelado." if leilao.lider_id is not None
                     else "Este leilão não pode mais ser cancelado.")

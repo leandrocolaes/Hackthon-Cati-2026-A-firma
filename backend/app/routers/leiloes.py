@@ -6,6 +6,8 @@
     GET  /api/leiloes/{id}                    -> detalhe publico
     POST /api/leiloes/{id}/participantes      -> 200 {id, numero, apelido}
     POST /api/leiloes/{id}/cancelar           -> 200 {id, estado, encerrado_em, versao}
+    PUT  /api/leiloes/{id}                    -> 200 {id, item_id, estado, versao} (edicao)
+    GET  /api/meus-leiloes                    -> leiloes do usuario com pode_editar/pode_cancelar
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -15,7 +17,7 @@ from app import dinheiro
 from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
 from app.schemas.leiloes import Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, ParticipanteSaida
-from app.servicos import cancelamento, leiloes, participantes
+from app.servicos import cancelamento, edicao, leiloes, participantes
 from app.sessoes import UsuarioLogado, usuario_atual
 
 router = APIRouter(prefix="/api", tags=["leilões"])
@@ -66,3 +68,15 @@ def entrar(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual), db: 
 def cancelar(leilao_id: int, usuario: UsuarioLogado = Depends(usuario_atual), db: Session = Depends(get_db)):
     """RF08: so o comitente; o registro continua existindo como "cancelado"."""
     return cancelamento.cancelar(db, leilao_id, usuario.id)
+
+
+@router.put("/leiloes/{leilao_id}")
+def editar(leilao_id: int, dados: LeilaoCriar, usuario: UsuarioLogado = Depends(usuario_atual),
+           cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
+    return edicao.editar(db, cfg, leilao_id, usuario.id, dados)
+
+
+@router.get("/meus-leiloes")
+def meus_leiloes(usuario: UsuarioLogado = Depends(usuario_atual),
+                 cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
+    return edicao.meus(db, cfg, usuario.id)

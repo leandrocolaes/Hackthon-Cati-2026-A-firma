@@ -56,3 +56,22 @@ def impedimento(estado: str, instante: datetime, termino_vigente: datetime,
     if usuario_id == lider_id:
         return "lance_do_lider"
     return None
+
+
+def cancelamento_permitido(estado: str, instante: datetime, termino_vigente: datetime, tem_lider: bool) -> bool:
+    """RF08. Agendado; ou em andamento SEM lances e antes do termino.
+
+    DECISAO: em andamento so ate o termino. Um leilao vencido sem lances deve virar
+    "encerrado sem lances" (worker), e nao "cancelado", nao importa quem chegue antes.
+    """
+    return estado == "agendado" or (estado == "em_andamento" and not tem_lider and instante < termino_vigente)
+
+
+def edicao_permitida(estado: str, instante: datetime, inicio: datetime, outros_participantes: int,
+                     cfg: Configuracoes) -> bool:
+    """DECISAO da equipe: so leilao agendado (antes do inicio) e, alem disso, se ninguem
+    alem do comitente entrou na sala OU se falta mais que AUCTION_EDIT_MIN_ADVANCE_SECONDS
+    (padrao 10 min) para o inicio. Quem esta na sala recebe o estado novo na hora."""
+    if estado != "agendado" or instante >= inicio:
+        return False
+    return outros_participantes == 0 or (inicio - instante).total_seconds() > cfg.edicao_antecedencia_segundos

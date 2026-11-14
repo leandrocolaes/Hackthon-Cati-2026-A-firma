@@ -36,6 +36,8 @@ leilao, e UUIDs identificam tentativas ou referencias opacas conforme indicado.
 | GET `/api/leiloes/1/sala` | Sessao e participacao | — | 200, snapshot da sala exemplificado abaixo |
 | POST `/api/leiloes/1/lances` | Sessao e participacao | `{"valor":"10.00","chave":"b507dc81-a9b6-4ad7-8d1c-176f664bf9cb"}` | 201 `{"lance_id":4,"leilao_id":1,"valor":"10.00","versao":2}` |
 | POST `/api/leiloes/1/cancelar` | Sessao do comitente | — | 200 `{"id":1,"estado":"cancelado","encerrado_em":"2026-11-14T17:59:00Z","versao":1}` |
+| PUT `/api/leiloes/1` | Sessao do comitente | mesmo corpo da criacao (a lista `fotos` substitui a anterior) | 200 `{"id":1,"item_id":1,"estado":"agendado","versao":2}`; 403 edicao_nao_autorizada; 409 edicao_nao_permitida |
+| GET `/api/meus-leiloes` | Sessao valida | — | 200 `{"itens":[{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"agendado","preco_inicial":"10.00","preco_atual":"10.00","inicio":"...","termino_vigente":"...","total_lances":0,"participantes":0,"pode_editar":true,"pode_cancelar":true}]}` (todos os estados, mais recentes primeiro; `participantes` nao conta o comitente) |
 | WS `/api/leiloes/1/ws` | Sessao e participacao | handshake com cookie, sem corpo | 101 na conexao; mensagem `{"tipo":"estado_leilao","estado":<snapshot abaixo>}` |
 
 O exemplo de criacao com `fotos: []` exige ITEM_MIN_PHOTOS=0 explicitamente no
@@ -47,6 +49,11 @@ F11: o requisito de nuvem foi retirado; os bytes ficam no PostgreSQL (tabela `ar
 e a referencia e um token aleatorio de 32 caracteres. O tipo e detectado pelo conteudo
 (nao pelo nome/Content-Type). A mesma foto pode ser usada em mais de um leilao do dono.
 A lista de fotos no detalhe retorna objetos com `url` e `ordem`, sem credenciais.
+
+Edicao (decisao da equipe): so o comitente, so leilao agendado antes do inicio, e so se
+ninguem alem do comitente entrou na sala OU se falta mais de AUCTION_EDIT_MIN_ADVANCE_SECONDS
+(padrao 600 s) para o inicio. Valida como a criacao; incrementa `versao`, entao a sala
+recebe o snapshot novo (a tela recarrega o detalhe ao ver versao nova ainda agendado).
 
 ### Configuracao publica — exemplo de resposta
 
@@ -110,9 +117,9 @@ Selecionar campo/motivo e nao devolver input, ctx, senha, hash, token ou corpo b
 | Status | Codigos previstos |
 |---|---|
 | 401 | sessao_invalida; credenciais_invalidas (mensagem sempre “e-mail ou senha inválidos”) |
-| 403 | acesso_negado; participante_ausente; cancelamento_nao_autorizado |
+| 403 | acesso_negado; participante_ausente; cancelamento_nao_autorizado; edicao_nao_autorizada |
 | 404 | recurso_nao_encontrado |
-| 409 | email_ja_cadastrado; chave_reutilizada; leilao_fora_do_estado; leilao_encerrado; lance_do_comitente; lance_do_lider; lance_abaixo_do_minimo; cancelamento_nao_permitido; item_com_leilao_ativo |
+| 409 | email_ja_cadastrado; chave_reutilizada; leilao_fora_do_estado; leilao_encerrado; lance_do_comitente; lance_do_lider; lance_abaixo_do_minimo; cancelamento_nao_permitido; edicao_nao_permitida; item_com_leilao_ativo |
 | 422 | entrada_invalida (formato, tipo, faixa, instante sem fuso ou dados obrigatorios) |
 | 503 | armazenamento_indisponivel |
 

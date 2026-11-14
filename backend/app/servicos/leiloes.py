@@ -1,6 +1,8 @@
 """Criacao, catalogo e detalhe de leiloes (RF05, RF06, RF07, RF20)."""
 
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
 from math import ceil
 
 from sqlalchemy import case, func, insert, select
@@ -28,7 +30,17 @@ def nao_encontrado() -> ErroApi:
     return ErroApi(404, "recurso_nao_encontrado", "Leilão não encontrado.")
 
 
-def criar(db: Session, cfg: Configuracoes, comitente_id: int, dados: LeilaoCriar) -> LeilaoCriado:
+@dataclass(frozen=True)
+class Validado:
+    nome: str
+    descricao: str
+    preco: Decimal
+    fotos: list[fotos.FotoResolvida]
+    termino: datetime
+
+
+def validar(db: Session, cfg: Configuracoes, comitente_id: int, dados: LeilaoCriar) -> Validado:
+    """Regras de criacao, reaproveitadas pela edicao (mesmos limites, mesmos 422)."""
     nome, descricao = dados.nome.strip(), dados.descricao.strip()
     if not cfg.nome_item_minimo <= len(nome) <= cfg.nome_item_maximo:
         raise invalido("nome", f"Use de {cfg.nome_item_minimo} a {cfg.nome_item_maximo} caracteres.")
@@ -56,15 +68,23 @@ def criar(db: Session, cfg: Configuracoes, comitente_id: int, dados: LeilaoCriar
         resolvidas = fotos.resolver(db, comitente_id, dados.fotos)
     except fotos.ReferenciaInvalida as e:
         raise invalido(f"fotos.{e.posicao - 1}", "Foto não encontrada ou não pertence a você.")
+    return Validado(nome, descricao, preco, resolvidas, dados.inicio + timedelta(seconds=dados.duracao_segundos))
 
-    termino = dados.inicio + timedelta(seconds=dados.duracao_segundos)
+
+def gravar_fotos(db: Session, item_id: int, resolvidas: list[fotos.FotoResolvida]) -> None:
+    for ordem, foto in enumerate(resolvidas):
+        db.execute(insert(FotoItem).values(item_id=item_id, url=foto.url,
+                                           chave_armazenamento=foto.chave_armazenamento, ordem=ordem))
+
+
+def criar(db: Session, cfg: Configuracoes, comitente_id: int, dados: LeilaoCriar) -> LeilaoCriado:
+    v = validar(db, cfg, comitente_id, dados)
+    nome, descricao, preco, termino = v.nome, v.descricao, v.preco, v.termino
     try:
         item_id = db.execute(insert(Item).values(
             usuario_id=comitente_id, nome=nome, descricao=descricao, categoria=dados.categoria,
         ).returning(Item.id)).scalar_one()
-        for ordem, foto in enumerate(resolvidas):
-            db.execute(insert(FotoItem).values(item_id=item_id, url=foto.url,
-                                               chave_armazenamento=foto.chave_armazenamento, ordem=ordem))
+        gravar_fotos(db, item_id, v.fotos)
         leilao_id = db.execute(insert(Leilao).values(
             item_id=item_id, comitente_id=comitente_id,  # comitente = dono do item (dominio, item 1)
             preco_inicial=preco, preco_atual=preco,
