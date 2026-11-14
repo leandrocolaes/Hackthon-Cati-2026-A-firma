@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app import erros, tempo_real
 from app.db import get_db
-from app.routers import auth, lances, leiloes, sala_ws
+from app.routers import auth, fotos, lances, leiloes, sala_ws
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ async def ciclo_de_vida(app: FastAPI):
 app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=ciclo_de_vida)
 erros.registrar(app)
 app.include_router(auth.router)
+app.include_router(fotos.router)
 app.include_router(leiloes.router)
 app.include_router(lances.router)
 app.include_router(sala_ws.router)

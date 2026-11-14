@@ -64,7 +64,7 @@ class LeiloesTest(TesteAPI):
             ({"duracao_segundos": 10}, "duracao_segundos"),
             ({"categoria": "Inexistente"}, "categoria"),
             ({"nome": "ab"}, "nome"),
-            ({"fotos": ["ref-qualquer"]}, "fotos.0"),           # sem F11, nenhuma referencia e valida
+            ({"fotos": ["ref-qualquer"]}, "fotos.0"),           # referencia que nao foi emitida
         ]
         for extra, campo in casos:
             with self.subTest(campo=campo, extra=extra):

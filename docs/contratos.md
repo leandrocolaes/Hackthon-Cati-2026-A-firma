@@ -27,7 +27,8 @@ leilao, e UUIDs identificam tentativas ou referencias opacas conforme indicado.
 | DELETE `/api/sessao` | Cookie atual | — | 204, sem corpo; invalida somente a sessao atual e remove o cookie; ausencia de sessao tambem pode retornar 204 |
 | GET `/api/eu` | Sessao valida | — | 200 `{"id":1,"nome":"Ana","email":"ana@example.com"}` |
 | GET `/api/config-publica` | Publico | — | 200, objeto de configuracao publica exemplificado abaixo |
-| POST `/api/fotos` | Sessao valida | multipart com campo `arquivo` contendo uma imagem | 201 `{"referencia":"ref-opaca-emitida-pelo-backend","url":"https://fotos.exemplo/item.jpg"}` |
+| POST `/api/fotos` | Sessao valida | multipart com campo `arquivo` contendo uma imagem | 201 `{"referencia":"ref-opaca-emitida-pelo-backend","url":"/api/fotos/ref-opaca-emitida-pelo-backend"}`; 422 `entrada_invalida` (campo `arquivo`) para vazio, acima do limite ou tipo fora da lista |
+| GET `/api/fotos/{referencia}` | Publico | — | 200 com os bytes da imagem (`Content-Type` do tipo detectado, cache imutavel); 404 `recurso_nao_encontrado` |
 | POST `/api/leiloes` | Sessao valida | `{"nome":"Livro","descricao":"Livro em bom estado","categoria":"Outros","preco_inicial":"10.00","inicio":"2026-11-14T18:00:00Z","duracao_segundos":180,"fotos":[]}` | 201 `{"id":1,"item_id":1,"estado":"agendado"}` |
 | GET `/api/leiloes?pagina=1&por_pagina=20` | Publico | — | 200 `{"itens":[{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"preco_atual":"10.00","estado":"agendado","inicio":"2026-11-14T18:00:00Z","termino_vigente":"2026-11-14T18:03:00Z"}],"pagina":1,"por_pagina":20,"total":1}` |
 | GET `/api/leiloes/1` | Publico | — | 200 `{"id":1,"item":{"id":1,"nome":"Livro","descricao":"Livro em bom estado","categoria":"Outros","fotos":[]},"estado":"agendado","preco_inicial":"10.00","preco_atual":"10.00","inicio":"2026-11-14T18:00:00Z","termino_vigente":"2026-11-14T18:03:00Z"}` |
@@ -42,7 +43,9 @@ ambiente de desenvolvimento/versao minima. Com o padrao 3, deve ser recusado.
 Com fotos, enviar `fotos: ["ref-opaca-1","ref-opaca-2","ref-opaca-3"]`.
 O backend define dono/comitente pela sessao, calcula terminos e valida referencias,
 quantidade e posse; nunca aceitar URL arbitraria como prova de upload autorizado.
-F11 define o mecanismo da referencia conforme o provedor, sem exigir tabela nova agora.
+F11: o requisito de nuvem foi retirado; os bytes ficam no PostgreSQL (tabela `arquivos_fotos`)
+e a referencia e um token aleatorio de 32 caracteres. O tipo e detectado pelo conteudo
+(nao pelo nome/Content-Type). A mesma foto pode ser usada em mais de um leilao do dono.
 A lista de fotos no detalhe retorna objetos com `url` e `ordem`, sem credenciais.
 
 ### Configuracao publica — exemplo de resposta

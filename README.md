@@ -94,8 +94,8 @@ duplica as contas, só cria outro lote; rodem pouco antes da demo.
 | `comprador2@demo.local` | comprador |
 | `comprador3@demo.local` | comprador |
 
-As fotos desses leilões são URLs públicas de exemplo; para demonstrar o envio de
-fotos à nuvem (RF07), criem um leilão pela tela.
+As fotos desses leilões são URLs públicas de exemplo (precisam de internet no navegador);
+para demonstrar o envio de fotos (RF07), criem um leilão pela tela.
 
 ### Desenvolvendo (com recarga automática)
 
@@ -258,6 +258,7 @@ como a ordem em que o servidor obtém a trava do leilão; cada lance é processa
 contra o estado confirmado anterior. Essa interpretação não promete ordem FIFO
 pela chegada HTTP/rede e será validada por testes de consistência.
 
+A revisão `0003_arquivos_fotos` acrescenta `arquivos_fotos` (bytes das fotos enviadas).
 A revisão `0002_dominio_leiloes` acrescenta `itens`, `fotos_itens`, `leiloes`,
 `lances`, `tentativas_lance` e `participantes`, preservando usuários e sessões.
 Use os mesmos comandos `alembic upgrade head` para atualizar. O downgrade dessa
@@ -301,7 +302,7 @@ preciso mexer no `.env`. Para exigir fotos antes disso, defina `ITEM_MIN_PHOTOS=
 
 Vale `0 <= ITEM_MIN_PHOTOS <= ITEM_MAX_PHOTOS`.
 Zero fotos é uma simplificação temporária; a entrega do Núcleo exige pelo menos
-três fotos válidas na nuvem. O limite padrão por foto é **5.242.880 bytes (5 MiB)**.
+três fotos válidas. O limite padrão por foto é **5.242.880 bytes (5 MiB)**.
 Nome tem 3–100 caracteres, descrição 10–2.000, fotos 3–10, preço inicial mínimo
 R$ 1,00, antecedência 1 minuto–30 dias e duração 1 minuto–7 dias.
 
@@ -330,3 +331,21 @@ python -m unittest discover -s tests -p test_config.py -v
 Nesta entrega passaram 11 testes de configuração. Na descoberta completa, os
 seis testes PostgreSQL continuam ignorados sem TEST_DATABASE_URL. A aplicação
 real das migrações e a validação do Compose em execução continuam pendentes.
+
+## Fotos (RF07)
+
+DECISÃO: o requisito de armazenamento em nuvem foi retirado pela organização, e as
+fotos ficam **no PostgreSQL** (tabela `arquivos_fotos`). Assim não há volume nem
+serviço novo no `compose.yaml`: o deploy continua igual, e as fotos sobrevivem a
+reinícios junto com o volume do banco (`dbdata`).
+
+- `POST /api/fotos` (com sessão, multipart, campo `arquivo`) valida e grava a foto e
+  devolve `{referencia, url}`. A tela envia cada foto ao selecioná-la e, ao criar o
+  leilão, manda só as referências. O backend confere que cada referência existe e é
+  de quem está criando; nunca aceita URL qualquer.
+- O tipo é detectado pelos primeiros bytes (JPEG, PNG ou WebP), não pelo nome do
+  arquivo; o tamanho máximo vem de `PHOTO_MAX_BYTES` (padrão 5 MiB). O Nginx já
+  aceita corpos de até 60 MB.
+- `GET /api/fotos/{referencia}` é público (catálogo e detalhe são públicos) e manda
+  o navegador guardar a imagem em cache, porque o conteúdo de uma referência nunca muda.
+- Limitação conhecida: fotos enviadas e não usadas em nenhum leilão ficam no banco.
