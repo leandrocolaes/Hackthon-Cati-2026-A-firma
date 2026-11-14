@@ -96,3 +96,36 @@ class TesteAPI(unittest.TestCase):
         c.usuario_id = r.json()["usuario"]["id"]
         c.email = email
         return c
+
+
+class TesteLeilao(TesteAPI):
+    """Base para testes que precisam de leilao em andamento (sem fotos ate o F11)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from app.config import Configuracoes, obter_configuracoes
+        cls.cfg = Configuracoes(_env_file=None, ITEM_MIN_PHOTOS=0)
+        app.dependency_overrides[obter_configuracoes] = lambda: cls.cfg
+
+    def novo_leilao(self, comitente, preco="100.00") -> int:
+        from datetime import datetime, timedelta, timezone
+        inicio = (datetime.now(timezone.utc) + timedelta(seconds=120)).isoformat()
+        r = comitente.post("/api/leiloes", json={
+            "nome": "Bicicleta", "descricao": "Bicicleta revisada", "categoria": "Outros",
+            "preco_inicial": preco, "inicio": inicio, "duracao_segundos": 300, "fotos": []})
+        self.assertEqual(r.status_code, 201, r.text)
+        return r.json()["id"]
+
+    def abrir_agora(self, leilao_id: int, termina_em_seg: float = 300):
+        """Coloca em andamento sem esperar o worker (atalho de teste)."""
+        self.banco.sql("""UPDATE leiloes SET estado='em_andamento',
+                          inicio = clock_timestamp() - interval '1 second',
+                          termino_original = clock_timestamp() + make_interval(secs => :s),
+                          termino_vigente  = clock_timestamp() + make_interval(secs => :s)
+                          WHERE id = :id""", id=leilao_id, s=termina_em_seg)
+
+    def entrar(self, cliente, leilao_id):
+        r = cliente.post(f"/api/leiloes/{leilao_id}/participantes")
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
