@@ -28,9 +28,9 @@ class ConfiguracoesTest(unittest.TestCase):
     def config(self, **valores):
         return Configuracoes(_env_file=None, **valores)
 
-    def test_padrao_exige_tres_fotos_e_preserva_dinheiro_decimal(self):
+    def test_padrao_temporario_sem_fotos_e_preserva_dinheiro_decimal(self):
         config = self.config()
-        self.assertEqual(config.fotos_minimas, 3)
+        self.assertEqual(config.fotos_minimas, 0)  # TEMPORARIO ate o F11; depois 3
         self.assertEqual(config.preco_inicial_minimo, Decimal("1.00"))
         self.assertIsInstance(config.preco_inicial_minimo, Decimal)
         self.assertEqual(config.foto_maxima_bytes, 5242880)
@@ -112,13 +112,13 @@ class ConfiguracoesTest(unittest.TestCase):
     def test_cache_carrega_uma_vez_e_objeto_nao_muda(self):
         with patch.object(Configuracoes, "model_config", dict(Configuracoes.model_config, env_file=None)):
             primeiro = obter_configuracoes()
-            os.environ["ITEM_MIN_PHOTOS"] = "0"
+            os.environ["ITEM_MIN_PHOTOS"] = "5"
             self.assertIs(primeiro, obter_configuracoes())
-            self.assertEqual(primeiro.fotos_minimas, 3)
+            self.assertEqual(primeiro.fotos_minimas, 0)
             with self.assertRaises(ValidationError):
-                primeiro.fotos_minimas = 0
+                primeiro.fotos_minimas = 5
             obter_configuracoes.cache_clear()
-            self.assertEqual(obter_configuracoes().fotos_minimas, 0)
+            self.assertEqual(obter_configuracoes().fotos_minimas, 5)
 
     def test_url_invalida_nao_vaza_credencial_no_erro_ou_repr(self):
         config = self.config()

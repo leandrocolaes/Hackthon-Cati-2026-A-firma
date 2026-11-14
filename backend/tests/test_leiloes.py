@@ -73,8 +73,8 @@ class LeiloesTest(TesteAPI):
                 self.assertEqual(r.json()["codigo"], "entrada_invalida")
                 self.assertIn(campo, [c["campo"] for c in r.json()["detalhes"]["campos"]])
 
-    def test_com_padrao_tres_fotos_criar_sem_fotos_e_recusado(self):
-        app.dependency_overrides[obter_configuracoes] = lambda: Configuracoes(_env_file=None)
+    def test_exigindo_tres_fotos_criar_sem_fotos_e_recusado(self):
+        app.dependency_overrides[obter_configuracoes] = lambda: Configuracoes(_env_file=None, ITEM_MIN_PHOTOS=3)
         self.addCleanup(app.dependency_overrides.__setitem__, obter_configuracoes, lambda: CFG_SEM_FOTOS)
         r = self.cadastrar_e_entrar().post("/api/leiloes", json=self.dados())
         self.assertEqual(r.status_code, 422)
