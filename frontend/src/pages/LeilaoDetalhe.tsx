@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import type { Leilao } from "../classes/Leilao";
 import { FotoLeilao } from "../components/FotoLeilao";
 import { SeloEstado } from "../components/SeloEstado";
-import { leiloesDemonstracao } from "../lib/dados-demo";
+import { api, ErroApi, leilaoDoDetalhe, type DetalheApi } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { formatarBRL, formatarDataHora } from "../lib/format";
 import { useRelogio } from "../lib/useRelogio";
 
@@ -10,10 +12,39 @@ export function LeilaoDetalhe() {
   const { id } = useParams();
   const agora = useRelogio();
   const [avisoSala, setAvisoSala] = useState(false);
+  const { usuario } = useAuth();
+  const navegar = useNavigate();
+  const local = useLocation();
+  const [leilao, setLeilao] = useState<Leilao | null>(null);
+  const [situacao, setSituacao] = useState<"carregando" | "ok" | "nao_encontrado" | "erro">("carregando");
 
-  const leilao = leiloesDemonstracao.find(
-    (candidato) => candidato.id === Number(id),
-  );
+  useEffect(() => {
+    setSituacao("carregando");
+    api.get<DetalheApi>(`/api/leiloes/${id}`)
+      .then((d) => { setLeilao(leilaoDoDetalhe(d)); setSituacao("ok"); })
+      .catch((e: ErroApi) => setSituacao(e.status === 404 ? "nao_encontrado" : "erro"));
+  }, [id]);
+
+  function entrarNaSala() {
+    if (!usuario) {
+      // A sala exige login: vai para o login e volta para cá depois.
+      navegar(`/entrar?voltar=${encodeURIComponent(local.pathname)}`);
+      return;
+    }
+    setAvisoSala(true);
+  }
+
+  if (situacao === "carregando") {
+    return <main className="detalhe"><p className="detalhe__legenda">Carregando…</p></main>;
+  }
+
+  if (situacao === "erro") {
+    return (
+      <main className="detalhe">
+        <p className="aviso-sala" role="alert">Não foi possível carregar o leilão. Tente de novo.</p>
+      </main>
+    );
+  }
 
   if (!leilao) {
     return (
@@ -90,16 +121,14 @@ export function LeilaoDetalhe() {
           <button
             type="button"
             className="botao botao--principal botao--largo"
-            onClick={() => setAvisoSala(true)}
+            onClick={entrarNaSala}
           >
             Entrar na sala
           </button>
 
           {avisoSala && (
             <p className="aviso-sala" role="status">
-              A entrada na sala exige login. O fluxo de autenticação será
-              conectado na etapa F03; até lá, o acompanhamento ao vivo não está
-              disponível.
+              A sala ao vivo ainda não está conectada nesta versão.
             </p>
           )}
 

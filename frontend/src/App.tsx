@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Cabecalho } from "./components/Cabecalho";
+import { ProvedorAuth } from "./lib/auth";
+import { Entrar } from "./pages/Entrar";
 import { Rodape } from "./components/Rodape";
 import { Home } from "./pages/Home";
 import { LeilaoDetalhe } from "./pages/LeilaoDetalhe";
@@ -19,6 +21,7 @@ function RolarAoNavegar() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ProvedorAuth>
       <div className="aplicacao">
         <Cabecalho />
         <RolarAoNavegar />
@@ -26,11 +29,13 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/leiloes/:id" element={<LeilaoDetalhe />} />
+            <Route path="/entrar" element={<Entrar />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Routes>
         </div>
         <Rodape />
       </div>
+      </ProvedorAuth>
     </BrowserRouter>
   );
 }

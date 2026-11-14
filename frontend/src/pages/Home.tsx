@@ -1,17 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Leilao } from "../classes/Leilao";
 import { CartaoLeilao } from "../components/CartaoLeilao";
 import { Paginacao } from "../components/Paginacao";
-import { leiloesDemonstracao } from "../lib/dados-demo";
+import { api, leilaoDoCartao, type CartaoApi } from "../lib/api";
 import { useRelogio } from "../lib/useRelogio";
 
 const POR_PAGINA = 20;
+// Busca até 100 leilões (máximo da API) e pagina na tela, como antes.
+// DECISAO: a lista se atualiza sozinha a cada 15 s (estado e preço mudam).
+const ATUALIZAR_MS = 15_000;
 
 export function Home() {
   const agora = useRelogio();
   const [pagina, setPagina] = useState(1);
 
-  const catalogo = useMemo(() => Leilao.catalogo(leiloesDemonstracao), []);
+  const [leiloes, setLeiloes] = useState<Leilao[]>([]);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    let ativo = true;
+    const carregar = () =>
+      api.get<{ itens: CartaoApi[] }>("/api/leiloes?pagina=1&por_pagina=100")
+        .then((r) => { if (ativo) { setLeiloes(r.itens.map(leilaoDoCartao)); setErro(""); } })
+        .catch((e) => ativo && setErro(e.message));
+    carregar();
+    const timer = window.setInterval(carregar, ATUALIZAR_MS);
+    return () => { ativo = false; window.clearInterval(timer); };
+  }, []);
+
+  const catalogo = useMemo(() => Leilao.catalogo(leiloes), [leiloes]);
   const emAndamento = catalogo.filter((leilao) => leilao.emAndamento).length;
   const agendados = catalogo.filter((leilao) => leilao.agendado).length;
   const categorias = new Set(catalogo.map((leilao) => leilao.item.categoria)).size;
@@ -45,7 +62,7 @@ export function Home() {
               Explorar leilões
             </a>
             <span className="hero__nota">
-              {catalogo.length} anúncios no catálogo de demonstração
+              {catalogo.length} anúncios no catálogo
             </span>
           </div>
         </div>
@@ -85,11 +102,12 @@ export function Home() {
           </p>
         </div>
 
-        <p className="aviso-demonstracao">
-          <span aria-hidden="true">●</span>
-          Dados de demonstração: a listagem pública ainda não está conectada à
-          API do backend.
-        </p>
+        {erro && (
+          <p className="aviso-demonstracao" role="alert">
+            <span aria-hidden="true">●</span>
+            Não foi possível carregar os leilões: {erro}
+          </p>
+        )}
 
         {visiveis.length === 0 ? (
           <div className="estado-vazio">

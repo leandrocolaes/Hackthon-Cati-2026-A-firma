@@ -1,6 +1,8 @@
 import { Link, NavLink } from "react-router-dom";
+import { useAuth } from "../lib/auth";
 
 export function Cabecalho() {
+  const { usuario, sair } = useAuth();
   return (
     <header className="cabecalho">
       <div className="cabecalho__conteudo">
@@ -21,7 +23,21 @@ export function Cabecalho() {
           >
             Leilões
           </NavLink>
-          <span className="navegacao__ambiente">ambiente de demonstração</span>
+          {usuario ? (
+            <>
+              <span className="navegacao__usuario">Olá, {usuario.nome}</span>
+              <button type="button" className="navegacao__item botao-link" onClick={sair}>
+                Sair
+              </button>
+            </>
+          ) : (
+            <NavLink
+              to="/entrar"
+              className={({ isActive }) => `navegacao__item${isActive ? " ativo" : ""}`}
+            >
+              Entrar
+            </NavLink>
+          )}
         </nav>
       </div>
     </header>
