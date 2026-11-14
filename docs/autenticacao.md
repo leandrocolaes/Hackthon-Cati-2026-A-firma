@@ -3,13 +3,13 @@
 ## Escopo desta entrega
 
 Modelos SQLAlchemy de usuario e sessao, suas restricoes e este contrato.
-Nao inclui migracoes, criacao automatica de tabelas, endpoints, schemas de API,
+Inclui agora a migracao inicial via Alembic. Nao inclui criacao automatica de tabelas, endpoints, schemas de API,
 funcoes de hash, cookies, telas, seed ou regras de leilao. As restricoes declaradas
-nos modelos so passam a valer no banco quando a migracao do segundo commit for aplicada.
+nos modelos so passam a valer no banco depois de executar `alembic upgrade head`.
 
 Importar `app.models` registra `Usuario` e `Sessao` em `Base.metadata`.
 O Alembic devera importar esse pacote antes de consultar os metadados.
-Nenhuma nova dependencia de execucao e necessaria para os modelos.
+Os modelos usam SQLAlchemy; as migracoes usam Alembic, incluido nas dependencias do backend.
 
 ## Usuario
 
@@ -102,9 +102,34 @@ nao criar worker nem rotina de limpeza neste commit.
 
 ## Proximos passos
 
-1. Segundo commit: configurar Alembic e criar migracao das duas tabelas e restricoes.
+1. Aplicar a revisao `0001_usuarios_sessoes` via Alembic (comandos no README).
 2. Validar comportamento real em PostgreSQL, inclusive unicidade e FK.
 3. F03: validacoes, bcrypt, cadastro, login, cookie, autorizacao, renovacao, logout e telas.
 
 O restante do F00 (item, leilao, fotos, lances, presenca e contratos gerais)
 continua pendente. Reutilizar estes modelos e acrescentar migracoes posteriores.
+
+## Validacao do segundo commit
+
+Executado: importacao dos modelos, sintaxe Python, revisao unica, geracao offline
+do SQL PostgreSQL de upgrade/downgrade, comparacao do SQL de tabelas/indices
+entre modelos e migracao, e geracao de uma revisao pelo template em pasta temporaria.
+
+Pendente: aplicar em PostgreSQL vazio, repetir `upgrade head`, executar `current`
+e `check`, testar restricoes com dados reais e executar via Docker Compose.
+Nao havia Docker/PostgreSQL executavel no ambiente desta entrega. Nenhum banco
+foi alterado; a validacao offline nao comprova aplicacao nem comportamento real
+no banco. Esses cenarios devem ser executados antes de considerar a base validada.
+
+## Compatibilidade com F01 (commit 5dfc6c7)
+
+No host, o PostgreSQL usa `127.0.0.1:5433`; dentro do Compose, usa `db:5432`.
+Alembic reutiliza `DATABASE_URL`, definida pelo Compose ou exportada no terminal.
+Nao carrega `.env` por conta propria. O Dockerfile copia configuracao e migracoes
+para que `docker compose run --rm backend alembic upgrade head` funcione.
+
+Rodar `bash scripts/verificar.sh env` antes da preparacao verifica o ambiente;
+o script HTTP e o healthcheck nao substituem `alembic current` / `alembic check`.
+A atualizacao de schema e manual e nao usa o mecanismo de restart dos containers.
+As variaveis de sessao comentadas em `.env.example` serao conectadas ao F03;
+esta entrega continua sem configuracao de dominio, seed ou endpoints novos.

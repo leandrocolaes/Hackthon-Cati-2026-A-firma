@@ -44,11 +44,31 @@ O que a página de teste demonstra:
 ### Tudo junto (igual vai rodar na VM)
 
 ```bash
-cp .env.example .env          # e troque a senha
+cp .env.example .env          # somente se ainda nao existir; ajuste a senha antes de criar o banco
+bash scripts/verificar.sh env
+docker compose up -d db
+docker compose build backend
+docker compose run --rm backend alembic upgrade head
 docker compose up --build
 ```
 
-Abra http://localhost. Para parar: `Ctrl+C`; para apagar também os dados do banco: `docker compose down -v`.
+Abra http://localhost (ou `http://localhost:<HTTP_PORT>` se você configurou outra
+porta no `.env`). Para parar: `Ctrl+C`; `docker compose down` remove os containers,
+mas preserva o volume. Não use `docker compose down -v` para atualizar: ele apaga os dados.
+
+A porta HTTP padrão é 80; `HTTP_PORT` permite usar outra porta do host. O PostgreSQL
+fica acessível apenas no próprio computador em `127.0.0.1:5433`. Entre containers,
+o endereço continua sendo `db:5432`; não troque a porta interna por 5433.
+
+Para verificar página, health e handshake WebSocket do sistema em execução:
+
+```bash
+bash scripts/verificar.sh http http://localhost
+```
+
+Ajuste a URL se usar `HTTP_PORT`. Para comprovar o acesso externo à VM, execute a
+verificação de outro computador com a URL da VM. O script não verifica migrações;
+confirme também `alembic current` e `alembic check` conforme a seção abaixo.
 
 ### Desenvolvendo (com recarga automática)
 
@@ -62,7 +82,10 @@ docker compose up db
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export DATABASE_URL="postgresql+psycopg://leilao:troque-esta-senha@localhost:5432/leilao"
+# Use usuario, senha e banco correspondentes ao seu .env.
+# A porta do host e 5433; db:5432 e somente para conexoes entre containers.
+export DATABASE_URL="postgresql+psycopg://leilao:SUA_SENHA@127.0.0.1:5433/leilao"
+alembic upgrade head
 uvicorn app.main:app --reload
 
 # terminal 3 — frontend (precisa de Node 22)
@@ -77,7 +100,7 @@ Abra http://localhost:5173. Em desenvolvimento, quem faz o papel do Nginx é o p
 
 O caminho é sempre o mesmo, de baixo para cima:
 
-1. **Tabela** — crie um model em `backend/app/` herdando de `Base` (de `db.py`).
+1. **Tabela** — crie um model em `backend/app/models/` herdando de `Base` (de `db.py`), importe-o no `models/__init__.py` e gere/revise/aplique uma migração Alembic (comandos abaixo).
 2. **Rota** — crie a rota em `main.py` (ou em um arquivo próprio, com `APIRouter`) recebendo `db: Session = Depends(get_db)`.
 3. **Tela** — no React, chame a rota com `fetch("/api/...")`.
 4. Teste em `/api/docs` antes de ligar a tela.
@@ -88,8 +111,8 @@ Entra quando o requisito pedir, não antes:
 
 | Ferramenta | Entra quando |
 |---|---|
-| Alembic (migrações) | Criarmos as primeiras tabelas (até lá, `Base.metadata.create_all`) |
-| PyJWT + bcrypt | Login e sessões (RF01, RF02) |
+| Alembic (migrações) | Já configurado para as tabelas de autenticação; ver comandos abaixo |
+| bcrypt | Login e sessões (RF01, RF02); sessão opaca persistida, sem JWT neste contrato |
 | Pydantic Settings | Limites configuráveis (RF06) |
 | React Router | A segunda página |
 | Tailwind | Quando formos estilizar |
@@ -103,9 +126,84 @@ Ver a seção 2 de [`documento_de_requisitos.md`](documento_de_requisitos.md).
 ### Base de autenticacao (F00 parcial)
 
 Os modelos de usuario e sessao e as decisoes estao em
-[`docs/autenticacao.md`](docs/autenticacao.md). As tabelas ainda dependem da
-migracao planejada para o proximo commit; cadastro e login ainda nao estao implementados.
+[`docs/autenticacao.md`](docs/autenticacao.md). A primeira migracao cria as tabelas de autenticacao; aplique-a pelos comandos abaixo.
+Cadastro e login ainda nao estao implementados.
 
 Permitimos varias sessoes por usuario, cada uma com expiracao independente.
 As regras de lance serao garantidas por transacao no banco, de modo que varias
 sessoes nao afetem a consistencia. Sair em um aparelho nao encerra os demais.
+
+### Migrações do banco de dados
+
+O backend inclui Alembic. Ele usa a mesma variável `DATABASE_URL` da API;
+não coloque credenciais em `alembic.ini`. A API não cria nem migra tabelas
+automaticamente. Uma pessoa executa a atualização antes de usar funcionalidades
+que dependem das tabelas, sem apagar o volume do banco.
+
+Na raiz, com `.env` configurado, para preparar o ambiente Docker (não copie o
+arquivo de exemplo por cima de um `.env` existente):
+
+```bash
+bash scripts/verificar.sh env
+docker compose up -d db
+docker compose build backend
+docker compose run --rm backend alembic upgrade head
+docker compose run --rm backend alembic current
+docker compose run --rm backend alembic check
+docker compose up -d --build
+```
+
+Em desenvolvimento local, dentro de `backend/`, com o ambiente virtual ativo,
+as dependências instaladas e `DATABASE_URL` exportada conforme a seção de desenvolvimento:
+
+```bash
+alembic upgrade head
+alembic current
+alembic check
+```
+
+`upgrade head` aplica apenas migrações pendentes; repetir não recria as tabelas.
+A revisão inicial é `0001_usuarios_sessoes`, que cria `usuarios`, `sessoes`,
+suas restrições e índices. Alembic também mantém a tabela `alembic_version`.
+`check` verifica se os modelos exigem novas migrações; precisa de banco atualizado.
+
+Para futuras alterações, importe o novo modelo em `app/models/__init__.py`,
+gere uma revisão e revise o conteúdo antes de aplicá-la:
+
+```bash
+alembic revision --autogenerate -m "descreve alteracao"
+alembic upgrade head
+```
+
+Para inspecionar o SQL sem conectar ao banco (a URL ainda precisa estar configurada):
+
+```bash
+alembic upgrade head --sql
+```
+
+Não use `create_all`, `stamp head` ou `docker compose down -v` para substituir
+migrações. O downgrade inicial apaga usuários e sessões: só deve ser executado
+em banco descartável ou mediante decisão explícita com backup. Se essas tabelas
+já existirem por criação manual, confira o schema antes de tentar a migração;
+não marque uma versão como aplicada sem verificar que corresponde ao banco.
+
+### Compatibilidade com a configuração de ambiente (F01)
+
+O Compose injeta o `.env` no backend e define `DATABASE_URL` explicitamente com
+`db:5432`. Esse endereço é usado tanto pela API quanto por Alembic dentro do
+container. Fora do Docker, exporte `DATABASE_URL` com `127.0.0.1:5433`;
+o Alembic não carrega o `.env` automaticamente.
+
+Use uma senha com os caracteres permitidos em `.env.example`, pois o Compose
+monta a URL de conexão diretamente. A senha do PostgreSQL é definida quando o
+volume é criado: mudar só o `.env` depois não altera a senha já gravada no banco.
+Se os valores divergirem, restaure a configuração correspondente ou faça uma
+alteração controlada da senha no banco; não apague o volume para corrigir isso.
+
+As variáveis opcionais de domínio em `.env.example` antecipam funcionalidades
+futuras. Neste estágio não há `app/config.py`, `app/seed.py`, cadastro ou login;
+comentar/descomentar essas opções não implementa essas funcionalidades.
+
+O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
+Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
+e o script de verificação do F01 continuam independentes da execução do Alembic.
