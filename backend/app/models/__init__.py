@@ -1,6 +1,15 @@
-"""Importe este pacote para registrar os modelos em Base.metadata."""
+"""Importe este pacote para registrar todos os modelos em Base.metadata."""
 
 from app.models.usuario import Usuario
 from app.models.sessao import Sessao
+from app.models.item import Item
+from app.models.foto_item import FotoItem
+from app.models.leilao import Leilao
+from app.models.lance import Lance
+from app.models.tentativa_lance import TentativaLance
+from app.models.participante import Participante
 
-__all__ = ["Usuario", "Sessao"]
+__all__ = [
+    "Usuario", "Sessao", "Item", "FotoItem", "Leilao", "Lance",
+    "TentativaLance", "Participante",
+]

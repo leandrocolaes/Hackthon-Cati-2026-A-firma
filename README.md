@@ -207,3 +207,41 @@ comentar/descomentar essas opções não implementa essas funcionalidades.
 O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
 Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
 e o script de verificação do F01 continuam independentes da execução do Alembic.
+
+### Base do domínio de leilões (F00 parcial)
+
+O desenho aprovado das entidades e restrições está em
+[`docs/dominio.md`](docs/dominio.md). Os modelos e a revisão `0002_dominio_leiloes`
+foram adicionados; endpoints, telas e regras operacionais ainda não estão implementados.
+
+Para o Núcleo, “estar na sala” significa possuir registro de participante no leilão;
+o registro é estável por usuário/leilão e não expira ao fechar uma aba. Cada lance
+continua exigindo sessão válida. Presença temporária por aba fica para evolução futura.
+
+Não haverá fila persistida de lances. A equipe define a ordem de chegada operacional
+como a ordem em que o servidor obtém a trava do leilão; cada lance é processado
+contra o estado confirmado anterior. Essa interpretação não promete ordem FIFO
+pela chegada HTTP/rede e será validada por testes de consistência.
+
+A revisão `0002_dominio_leiloes` acrescenta `itens`, `fotos_itens`, `leiloes`,
+`lances`, `tentativas_lance` e `participantes`, preservando usuários e sessões.
+Use os mesmos comandos `alembic upgrade head` para atualizar. O downgrade dessa
+revisão remove os dados do domínio e não deve ser usado em banco compartilhado.
+
+### Testes das restrições no PostgreSQL
+
+Dentro de `backend/`, com as dependências instaladas, defina explicitamente um
+banco de **testes**. Os testes criam um schema aleatório e o removem no final;
+o usuário da conexão precisa de permissão para criar schemas.
+
+```bash
+export TEST_DATABASE_URL="postgresql+psycopg://USUARIO:SENHA@127.0.0.1:5433/BANCO_TESTE"
+python -m unittest discover -s tests -v
+```
+
+A suíte aplica 0001, insere usuário/sessão, aplica 0002 duas vezes e verifica
+preservação, correspondência com os modelos e restrições. Não usa o schema público
+para as tabelas de teste. Sem `TEST_DATABASE_URL`, os seis testes são ignorados;
+isso não significa que as restrições passaram. A execução real continua pendente
+nesta entrega, que foi validada apenas offline. Estes testes não validam regras de
+lance, concorrência ou recuperação do sistema, pertencentes aos próximos cartões.

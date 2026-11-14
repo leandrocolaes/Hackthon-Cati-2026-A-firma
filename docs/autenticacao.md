@@ -106,8 +106,9 @@ nao criar worker nem rotina de limpeza neste commit.
 2. Validar comportamento real em PostgreSQL, inclusive unicidade e FK.
 3. F03: validacoes, bcrypt, cadastro, login, cookie, autorizacao, renovacao, logout e telas.
 
-O restante do F00 (item, leilao, fotos, lances, presenca e contratos gerais)
-continua pendente. Reutilizar estes modelos e acrescentar migracoes posteriores.
+A revisao 0002_dominio_leiloes acrescenta item, fotos, leilao, lances, tentativas
+e participante, conforme docs/dominio.md. Configuracao, contratos gerais, base
+do frontend e validacao em banco real do F00 continuam pendentes.
 
 ## Validacao do segundo commit
 
