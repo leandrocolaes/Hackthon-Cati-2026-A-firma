@@ -6,6 +6,7 @@ Cada funcao recebe o estado e devolve a decisao, sempre igual para o mesmo estad
 
 from datetime import datetime, timedelta
 from decimal import Decimal
+from math import ceil
 
 from app.config import Configuracoes
 
@@ -67,6 +68,15 @@ def novo_termino(instante: datetime, termino_vigente: datetime, termino_original
     teto = hard_end(termino_original, cfg)
     candidato = min(instante + timedelta(seconds=cfg.prorrogacao_segundos), teto)
     return candidato if candidato > termino_vigente else None
+
+
+def espera_para_lance(ultima_tentativa: datetime | None, instante: datetime, cfg: Configuracoes) -> int | None:
+    """RF13. Segundos (inteiros, arredondados para cima) que faltam para este participante
+    poder tentar outro lance neste leilao, ou None se ja pode. Relogio do servidor."""
+    if ultima_tentativa is None or cfg.lance_intervalo_segundos == 0:
+        return None
+    restante = cfg.lance_intervalo_segundos - (instante - ultima_tentativa).total_seconds()
+    return ceil(restante) if restante > 0 else None
 
 
 def impedimento(estado: str, instante: datetime, termino_vigente: datetime,

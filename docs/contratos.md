@@ -126,6 +126,7 @@ Selecionar campo/motivo e nao devolver input, ctx, senha, hash, token ou corpo b
 | 404 | recurso_nao_encontrado |
 | 409 | email_ja_cadastrado; chave_reutilizada; leilao_fora_do_estado; leilao_encerrado; lance_do_comitente; lance_do_lider; lance_abaixo_do_minimo; cancelamento_nao_permitido; edicao_nao_permitida; item_com_leilao_ativo |
 | 422 | entrada_invalida (formato, tipo, faixa, instante sem fuso ou dados obrigatorios) |
+| 429 | lance_muito_rapido (RF13; `detalhes.segundos_restantes`, inteiro) |
 | 503 | armazenamento_indisponivel |
 
 Na rota de lance, ausencia de participacao e recusa de negocio: retornar **409**
@@ -134,6 +135,12 @@ Demais recusas de negocio de lance tambem usam 409 e informam lance_minimo nos
 detalhes quando o recurso for acessivel. 422 fica para entrada malformada.
 As restricoes de criacao (incluindo fotos) seguem 422 quando dados invalidos;
 conflito de item ja ativo usa 409. Erro de infraestrutura nao e recusa de negocio.
+
+RF13 (fase 2): um participante faz no maximo uma tentativa de lance a cada
+BID_MIN_INTERVAL_SECONDS (padrao 2 s) por leilao, medida pelo relogio do banco entre
+tentativas decididas (aceitas ou recusadas com 409). A recusa 429 NAO e gravada como
+tentativa: reenviar a mesma chave depois do intervalo e decidido normalmente. Replay de
+uma tentativa ja decidida devolve a resposta original, sem passar pelo limite.
 
 Reenvio autenticado da mesma tentativa retorna exatamente status_http e
 resposta_original guardados, sem alterar dados, versao ou marcar no corpo que e

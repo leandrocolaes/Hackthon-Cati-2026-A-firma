@@ -26,6 +26,8 @@ class Configuracoes(BaseSettings):
     database_url: SecretStr = Field(validation_alias="DATABASE_URL", repr=False)
     sessao_inatividade_minutos: int = Field(120, gt=0, validation_alias="SESSION_IDLE_MINUTES")
     sessao_cookie_nome: str = Field("afirma_sessao", min_length=1, validation_alias="SESSION_COOKIE_NAME")
+    # RF13: no maximo um lance a cada N segundos, por participante e por leilao. 0 desliga.
+    lance_intervalo_segundos: int = Field(2, ge=0, validation_alias="BID_MIN_INTERVAL_SECONDS")
     prorrogacao_janela_segundos: int = Field(60, gt=0, validation_alias="AUCTION_EXTENSION_WINDOW_SECONDS")
     prorrogacao_segundos: int = Field(60, gt=0, validation_alias="AUCTION_EXTENSION_SECONDS")
     prorrogacao_maxima_segundos: int = Field(600, gt=0, validation_alias="AUCTION_EXTENSION_MAX_SECONDS")

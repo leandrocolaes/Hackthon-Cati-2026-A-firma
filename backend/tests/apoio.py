@@ -105,7 +105,9 @@ class TesteLeilao(TesteAPI):
     def setUpClass(cls):
         super().setUpClass()
         from app.config import Configuracoes, obter_configuracoes
-        cls.cfg = Configuracoes(_env_file=None, ITEM_MIN_PHOTOS=0)
+        # RF13 desligado (0) na base: os testes antigos dao lances seguidos do mesmo usuario.
+        # O limite de 2 s e testado em test_limite_lances.py.
+        cls.cfg = Configuracoes(_env_file=None, ITEM_MIN_PHOTOS=0, BID_MIN_INTERVAL_SECONDS=0)
         app.dependency_overrides[obter_configuracoes] = lambda: cls.cfg
 
     def novo_leilao(self, comitente, preco="100.00") -> int:

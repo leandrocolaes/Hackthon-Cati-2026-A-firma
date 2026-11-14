@@ -7,7 +7,11 @@
          existe -> ROLLBACK; resposta original (ou 409 chave_reutilizada)
     3. instante = clock_timestamp()      <- depois da trava (RF16)
     4. sessao ainda vale? senao 401, sem gravar
-    5. decide (participante, estado/prazo, comitente, lider, valor >= minimo)
+    5. participante? senao 409 participante_ausente (gravada)
+    5b. RF13: ultima tentativa DECIDIDA deste usuario neste leilao ha menos de
+        BID_MIN_INTERVAL_SECONDS? -> 429 lance_muito_rapido, SEM gravar tentativa
+        (assim o reenvio da mesma chave depois do intervalo e decidido normalmente)
+    5c. decide (estado/prazo, comitente, lider, valor >= minimo)
     6. aceito -> INSERT lance; UPDATE leilao (preco, lider, termino, contador, versao+1)
     7. INSERT tentativa COMPLETA (situacao, status_http, resposta_original, lance_id)
   COMMIT
@@ -21,7 +25,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import exists, insert, select, update
+from sqlalchemy import exists, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -29,7 +33,7 @@ from app import dinheiro
 from app.config import Configuracoes
 from app.erros import ErroApi, corpo_erro
 from app.models import Lance, Leilao, Participante, Sessao, TentativaLance
-from app.regras import impedimento, lance_minimo, novo_termino
+from app.regras import espera_para_lance, impedimento, lance_minimo, novo_termino
 from app.servicos.leiloes import nao_encontrado
 from app.tempo import agora
 
@@ -46,6 +50,8 @@ MENSAGENS = {
     "lance_abaixo_do_minimo": "O valor está abaixo do mínimo atual.",
     "chave_reutilizada": "Esta tentativa já foi usada com outro valor ou leilão.",
 }
+# RF13: recusa de frequencia. 429 = "cedo demais"; nao e recusa de regra do leilao.
+STATUS_MUITO_RAPIDO = 429
 
 
 @dataclass
@@ -103,6 +109,14 @@ def _processar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int,
     if not participante:
         codigo = "participante_ausente"
     else:
+        ultima = db.execute(select(func.max(TentativaLance.criado_em)).where(
+            TentativaLance.usuario_id == usuario_id, TentativaLance.leilao_id == leilao_id)).scalar_one()
+        espera = espera_para_lance(ultima, instante, cfg)
+        if espera is not None:
+            db.rollback()  # nao grava: nao e uma decisao sobre o lance, so "tente depois"
+            return Resposta(STATUS_MUITO_RAPIDO, corpo_erro(
+                "lance_muito_rapido", f"Aguarde {espera} s para dar outro lance neste leilão.",
+                {"segundos_restantes": espera}))
         codigo = impedimento(leilao.estado, instante, leilao.termino_vigente,
                              usuario_id, leilao.comitente_id, leilao.lider_id)
         if codigo is None and valor < minimo:
@@ -111,7 +125,7 @@ def _processar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int,
     if codigo:
         detalhes = {} if codigo == "participante_ausente" else {"lance_minimo": dinheiro.texto(minimo)}
         corpo = corpo_erro(codigo, MENSAGENS[codigo], detalhes)
-        _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, None, 409, corpo)
+        _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, None, 409, corpo, instante)
         db.commit()
         return Resposta(409, corpo)
 
@@ -127,14 +141,15 @@ def _processar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int,
                              .returning(Leilao.versao)).scalar_one()
 
     corpo = {"lance_id": lance_id, "leilao_id": leilao_id, "valor": dinheiro.texto(valor), "versao": nova_versao}
-    _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, lance_id, 201, corpo)
+    _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, lance_id, 201, corpo, instante)
     db.commit()
     return Resposta(201, corpo)
 
 
-def _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, lance_id, status, corpo):
+def _gravar_tentativa(db, usuario_id, leilao_id, chave, valor, lance_id, status, corpo, instante):
     db.execute(insert(TentativaLance).values(
         usuario_id=usuario_id, leilao_id=leilao_id, chave=chave, valor_solicitado=valor,
+        criado_em=instante,  # relogio da decisao (RF13 mede o intervalo por aqui), nao o inicio da transacao
         lance_id=lance_id, situacao="aceita" if lance_id else "recusada",
         status_http=status, resposta_original=corpo,
     ))
