@@ -15,11 +15,12 @@ from sqlalchemy.orm import Session
 
 from app import erros
 from app.db import get_db
-from app.routers import auth
+from app.routers import auth, leiloes
 
 app = FastAPI(docs_url="/api/docs", openapi_url="/api/openapi.json")
 erros.registrar(app)
 app.include_router(auth.router)
+app.include_router(leiloes.router)
 
 
 @app.get("/api/health")

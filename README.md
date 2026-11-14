@@ -210,7 +210,8 @@ alteração controlada da senha no banco; não apague o volume para corrigir iss
 
 As variáveis de domínio em `.env.example` são carregadas e validadas por
 `app/config.py`. Os próximos cartões devem consumir essa configuração: ainda não
-há seed nem criação de leilões. Configurar limites não implementa essas funcionalidades.
+há seed. A criação de leilão existe, mas sem fotos até o cartão F11: enquanto isso,
+criar exige `ITEM_MIN_PHOTOS=0` (só desenvolvimento/versão mínima).
 
 O healthcheck da API confirma a conexão ao banco, não a existência das tabelas.
 Um backend `healthy` ainda pode ter migrações pendentes. As políticas de reinício
