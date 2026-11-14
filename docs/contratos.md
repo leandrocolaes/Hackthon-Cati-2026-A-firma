@@ -103,6 +103,19 @@ server_time; validade e decidida no servidor, com leitura efetiva apos a trava.
 Pagina comeca em 1; por_pagina padrao 20, maximo 100; parametros fora da faixa dao
 422, sem correcao silenciosa. Listar somente em_andamento/agendado: primeiro em
 andamento por termino_vigente, depois agendado por inicio; desempate por id.
+RF21 (fase 2), parametros opcionais e combinaveis de `GET /api/leiloes`:
+
+| Parametro | Valores | Regra |
+|---|---|---|
+| `busca` | texto (ate 100) | parte do **nome** do item; ignora maiusculas e acentos; `%` e `_` sao literais |
+| `categoria` | uma das configuradas | ignora maiusculas e acentos (`Colecionaveis`); desconhecida = lista vazia |
+| `estado` | `em_andamento`, `agendado` | omitido = os dois; outro valor = 422 |
+| `preco_min`, `preco_max` | decimal com ate 2 casas | inclusivos, sobre `preco_atual` (= inicial em agendado); min > max = 422 |
+| `ordenar` | `padrao`, `termina`, `comeca`, `preco_asc`, `preco_desc` | desempate por id |
+
+`total` conta so o que passou nos filtros. Exemplo:
+`/api/leiloes?busca=relogio&categoria=Colecionaveis&estado=em_andamento&preco_min=100&preco_max=1000&ordenar=preco_asc&pagina=1`.
+
 Detalhe continua publico pelo link direto nos estados finais, sem historico de
 lances, participantes ou vencedor. Configuracao publica serve ao formulario,
 mas o servidor sempre revalida os dados recebidos.

@@ -1,9 +1,10 @@
-"""Criacao, catalogo e detalhe de leiloes (RF05, RF06, RF07, RF20)."""
+"""Criacao, catalogo e detalhe de leiloes (RF05, RF06, RF07, RF20, RF21)."""
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from math import ceil
+import unicodedata
 
 from sqlalchemy import case, func, insert, select
 from sqlalchemy.exc import IntegrityError
@@ -18,6 +19,45 @@ from app.schemas.leiloes import (Catalogo, FotoSaida, ItemSaida, LeilaoCartao, L
 from app.tempo import agora, iso_utc
 
 ESTADOS_DO_CATALOGO = ("agendado", "em_andamento")
+
+# RF21: ordenacoes aceitas em ?ordenar= (o padrao e o do RF20).
+ORDENACOES = ("padrao", "termina", "comeca", "preco_asc", "preco_desc")
+
+# RF21. DECISAO: a busca e a categoria ignoram maiusculas E acentos ("relogio" acha
+# "Relógio"; "Colecionaveis" acha "Colecionáveis"), sem depender da extensao unaccent:
+# o banco troca as letras acentuadas com translate().
+_COM_ACENTO = "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ"
+_SEM_ACENTO = "AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn"
+
+
+def sem_acento(texto: str) -> str:
+    """Mesma normalizacao que o banco aplica (minusculas, sem acentos)."""
+    decomposto = unicodedata.normalize("NFD", texto)
+    return "".join(c for c in decomposto if not unicodedata.combining(c)).lower()
+
+
+def _sem_acento_sql(coluna):
+    return func.lower(func.translate(coluna, _COM_ACENTO, _SEM_ACENTO))
+
+
+def ordem_catalogo(ordenar: str) -> tuple:
+    """RF20/RF21. Desempate sempre por id: a paginacao nao repete nem pula itens."""
+    if ordenar == "termina":
+        return (Leilao.termino_vigente.asc(), Leilao.id)
+    if ordenar == "comeca":
+        return (Leilao.inicio.asc(), Leilao.id)
+    if ordenar == "preco_asc":
+        return (Leilao.preco_atual.asc(), Leilao.id)
+    if ordenar == "preco_desc":
+        return (Leilao.preco_atual.desc(), Leilao.id)
+    if ordenar != "padrao":
+        raise invalido("ordenar", "Ordenação inválida.")
+    # padrao (RF20): em andamento pelo termino mais proximo, depois agendados pelo inicio.
+    return (
+        case((Leilao.estado == "em_andamento", 0), else_=1),
+        case((Leilao.estado == "em_andamento", Leilao.termino_vigente), else_=Leilao.inicio),
+        Leilao.id,
+    )
 
 
 def invalido(campo: str, motivo: str) -> ErroApi:
@@ -140,12 +180,12 @@ def catalogo(
 
     termo = (busca or "").strip()
     if termo:
-        # contains(..., autoescape) procura o texto literal, sem tratar % e _ como curingas.
-        filtros.append(func.lower(Item.nome).contains(termo.lower(), autoescape=True))
+        # So o nome. contains(..., autoescape) procura o texto literal (% e _ nao sao curingas).
+        filtros.append(_sem_acento_sql(Item.nome).contains(sem_acento(termo), autoescape=True))
 
     nome_categoria = (categoria or "").strip()
     if nome_categoria:
-        filtros.append(Item.categoria == nome_categoria)
+        filtros.append(_sem_acento_sql(Item.categoria) == sem_acento(nome_categoria))
 
     if estado:
         filtros.append(Leilao.estado == estado)
@@ -159,19 +199,7 @@ def catalogo(
     if maximo is not None:
         filtros.append(Leilao.preco_atual <= maximo)
 
-    ordens = {
-        "padrao": (
-            case((Leilao.estado == "em_andamento", 0), else_=1),
-            case((Leilao.estado == "em_andamento", Leilao.termino_vigente), else_=Leilao.inicio),
-            Leilao.id,
-        ),
-        "termina": (Leilao.termino_vigente.asc(), Leilao.id),
-        "comeca": (Leilao.inicio.asc(), Leilao.id),
-        "preco_asc": (Leilao.preco_atual.asc(), Leilao.id),
-        "preco_desc": (Leilao.preco_atual.desc(), Leilao.id),
-    }
-    if ordenar not in ordens:
-        raise invalido("ordenar", "Ordenação inválida.")
+    ordem = ordem_catalogo(ordenar)
 
     total = db.execute(
         select(func.count()).select_from(Leilao).join(Item, Item.id == Leilao.item_id).where(*filtros)
@@ -180,7 +208,7 @@ def catalogo(
         select(Leilao, Item.nome, Item.categoria, _foto_principal().label("foto"))
         .join(Item, Item.id == Leilao.item_id)
         .where(*filtros)
-        .order_by(*ordens[ordenar])
+        .order_by(*ordem)
         .limit(por_pagina).offset((pagina - 1) * por_pagina)
     ).all()
     itens = [LeilaoCartao(

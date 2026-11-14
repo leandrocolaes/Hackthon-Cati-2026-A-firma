@@ -3,6 +3,7 @@
     GET  /api/config-publica                  -> limites e categorias para o formulario
     POST /api/leiloes                         -> 201 {id, item_id, estado}
     GET  /api/leiloes?pagina=1&por_pagina=20  -> catalogo publico
+         &busca=&categoria=&estado=&preco_min=&preco_max=&ordenar=   (RF21, opcionais)
     GET  /api/leiloes/{id}                    -> detalhe publico
     POST /api/leiloes/{id}/participantes      -> 200 {id, numero, apelido}
     POST /api/leiloes/{id}/cancelar           -> 200 {id, estado, encerrado_em, versao}
