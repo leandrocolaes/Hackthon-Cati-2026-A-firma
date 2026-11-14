@@ -89,6 +89,7 @@ def meus(db: Session, usuario_id: int) -> dict:
         "preco_inicial": dinheiro.texto(l.preco_inicial), "preco_atual": dinheiro.texto(l.preco_atual),
         "inicio": iso_utc(l.inicio), "termino_vigente": iso_utc(l.termino_vigente),
         "total_lances": n_lances, "participantes": n_outros,
+        "versao": l.versao,  # RF23: o formulario de edicao devolve este numero no PUT
         "pode_editar": edicao_permitida(l.estado, instante, l.inicio, n_lances > 0),
         "pode_cancelar": cancelamento_permitido(l.estado, instante, l.termino_vigente, l.lider_id is not None),
     } for l, nome, categoria, capa_url, n_lances, n_outros in linhas]}

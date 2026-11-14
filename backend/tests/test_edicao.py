@@ -1,6 +1,8 @@
 """Edicao de leilao agendado e "meus leiloes" (decisao da equipe; RF08 para pode_cancelar)."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from threading import Barrier
 from uuid import uuid4
 
 from tests.apoio import PRECISA_BANCO, TesteLeilao  # primeiro: define DATABASE_URL ficticia
@@ -89,6 +91,31 @@ class EdicaoTest(TesteLeilao):
         # Depois de revisar (lendo a versão nova), a edição é aceita.
         r = self.editar(ana, leilao_id, nome="Segunda alteração")
         self.assertEqual(r.status_code, 200, r.text)
+
+    def test_duas_edicoes_concorrentes_so_uma_grava(self):
+        ana = self.cadastrar_e_entrar()
+        outra_aba = self.cliente()
+        outra_aba.cookies = ana.cookies
+        leilao_id = self.novo_leilao(ana)
+        versao = self.versao(ana, leilao_id)
+        largada = Barrier(2)
+
+        def salvar(cliente, nome):
+            largada.wait()
+            return cliente.put(f"/api/leiloes/{leilao_id}", json={**self.dados(nome=nome), "versao": versao})
+
+        with ThreadPoolExecutor(2) as ex:
+            rs = list(ex.map(salvar, (ana, outra_aba), ("Aba um", "Aba dois")))
+        self.assertEqual(sorted(r.status_code for r in rs), [200, 409])
+        self.assertEqual(self.versao(ana, leilao_id), versao + 1)
+
+    def test_depois_do_horario_de_inicio_nao_edita_mesmo_sem_worker(self):
+        ana = self.cadastrar_e_entrar()
+        leilao_id = self.novo_leilao(ana)
+        self.banco.sql("UPDATE leiloes SET inicio = clock_timestamp() - interval '1 second' WHERE id=:id",
+                       id=leilao_id)  # ainda "agendado": o worker nao passou
+        r = self.editar(ana, leilao_id)
+        self.assertEqual((r.status_code, r.json()["codigo"]), (409, "edicao_nao_permitida"))
 
     def test_em_andamento_ou_cancelado_nao_edita(self):
         ana = self.cadastrar_e_entrar()

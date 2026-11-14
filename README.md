@@ -348,11 +348,13 @@ reinícios junto com o volume do banco (`dbdata`).
 
 ## Edição e "meus leilões"
 
-DECISÃO: o comitente pode editar um leilão **agendado** (antes do início) se ninguém
-além dele entrou na sala **ou** se falta mais de 10 minutos para o início
-(`AUCTION_EDIT_MIN_ADVANCE_SECONDS`, padrão 600). A edição usa os mesmos limites da
-criação e a mesma trava do lance e da entrada na sala, então uma entrada simultânea
-não escapa da regra. Quem já está na sala recebe a mudança na hora, com um aviso.
+RF23 (fase 2): o comitente pode editar nome, descrição, categoria, preço inicial,
+início e duração de um leilão **agendado, antes do início e sem lances**. Depois que o
+leilão inicia ou recebe lance, nada disso muda. A edição usa os mesmos limites da
+criação e a mesma trava do lance e da abertura. O formulário envia a `versao` que leu
+ao abrir; se o leilão mudou nesse meio-tempo, o servidor responde 409
+`conflito_de_versao` e a tela mostra o aviso para o comitente revisar antes de
+salvar de novo. Quem já está na sala recebe a mudança na hora, com um aviso.
 
 `GET /api/meus-leiloes` lista os leilões do usuário em qualquer estado, com
 `pode_editar` e `pode_cancelar` calculados pelo servidor; a tela só mostra os botões

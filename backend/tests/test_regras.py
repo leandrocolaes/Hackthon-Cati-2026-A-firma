@@ -8,7 +8,7 @@ import unittest
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost/unused")
 
 from app.config import Configuracoes  # noqa: E402
-from app.regras import espera_para_lance, hard_end, impedimento, incremento, lance_minimo, novo_termino, prorrogacao_esgotada  # noqa: E402
+from app.regras import edicao_permitida, espera_para_lance, hard_end, impedimento, incremento, lance_minimo, novo_termino, prorrogacao_esgotada  # noqa: E402
 
 CFG = Configuracoes(_env_file=None)
 T0 = datetime(2026, 11, 14, 18, 0, tzinfo=timezone.utc)
@@ -72,6 +72,14 @@ class RegrasTest(unittest.TestCase):
         self.assertIsNone(espera_para_lance(T0, T0 + timedelta(seconds=2), CFG))
         sem_limite = Configuracoes(_env_file=None, BID_MIN_INTERVAL_SECONDS=0)
         self.assertIsNone(espera_para_lance(T0, T0, sem_limite))
+
+    def test_edicao_so_agendado_antes_do_inicio_e_sem_lances(self):
+        inicio = T0 + timedelta(minutes=5)
+        self.assertTrue(edicao_permitida("agendado", T0, inicio, False))
+        self.assertFalse(edicao_permitida("agendado", inicio, inicio, False))  # chegou a hora
+        self.assertFalse(edicao_permitida("agendado", T0, inicio, True))  # com lance
+        for estado in ("em_andamento", "vendido", "encerrado_sem_lances", "cancelado"):
+            self.assertFalse(edicao_permitida(estado, T0, inicio, False))
 
     def test_impedimentos(self):
         fim = T0 + timedelta(minutes=1)

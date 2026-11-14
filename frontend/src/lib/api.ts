@@ -112,6 +112,7 @@ export interface MeuLeilaoApi {
   termino_vigente: string;
   total_lances: number;
   participantes: number;
+  versao: number; // RF23
   pode_editar: boolean;
   pode_cancelar: boolean;
 }
