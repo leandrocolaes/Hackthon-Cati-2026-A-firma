@@ -64,9 +64,16 @@ class ItemSaida(BaseModel):
     fotos: list[FotoSaida]
 
 
+class ComitentePublico(BaseModel):
+    """RF22: so o que o perfil publico mostra (nunca e-mail nem id interno)."""
+    nome: str
+    ref: str
+
+
 class LeilaoDetalhe(BaseModel):
     id: int
     item: ItemSaida
+    comitente: ComitentePublico
     estado: str
     preco_inicial: str
     preco_atual: str

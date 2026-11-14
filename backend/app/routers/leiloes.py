@@ -9,6 +9,7 @@
     POST /api/leiloes/{id}/cancelar           -> 200 {id, estado, encerrado_em, versao}
     PUT  /api/leiloes/{id}                    -> 200 {id, item_id, estado, versao} (edicao)
     GET  /api/meus-leiloes                    -> leiloes do usuario com pode_editar/pode_cancelar
+    GET  /api/comitentes/{ref}                -> perfil publico do comitente (RF22)
 """
 
 from typing import Literal
@@ -21,7 +22,7 @@ from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
 from app.schemas.leiloes import (Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, LeilaoEditar,
                                  ParticipanteSaida)
-from app.servicos import cancelamento, edicao, leiloes, participantes
+from app.servicos import cancelamento, edicao, leiloes, participantes, perfil
 from app.sessoes import UsuarioLogado, usuario_atual
 
 router = APIRouter(prefix="/api", tags=["leilões"])
@@ -95,3 +96,9 @@ def editar(leilao_id: int, dados: LeilaoEditar, usuario: UsuarioLogado = Depends
 @router.get("/meus-leiloes")
 def meus_leiloes(usuario: UsuarioLogado = Depends(usuario_atual), db: Session = Depends(get_db)):
     return edicao.meus(db, usuario.id)
+
+
+@router.get("/comitentes/{ref}")
+def perfil_publico(ref: str, db: Session = Depends(get_db)):
+    """RF22: publico, sem login. So nome de exibicao e leiloes; nada privado."""
+    return perfil.perfil(db, ref)

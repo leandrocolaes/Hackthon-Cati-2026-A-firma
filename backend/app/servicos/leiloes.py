@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from app import dinheiro, fotos
 from app.config import Configuracoes
 from app.erros import ErroApi
-from app.models import FotoItem, Item, Leilao
-from app.schemas.leiloes import (Catalogo, FotoSaida, ItemSaida, LeilaoCartao, LeilaoCriado, LeilaoCriar,
-                                 LeilaoDetalhe)
+from app.models import FotoItem, Item, Leilao, Usuario
+from app.schemas.leiloes import (Catalogo, ComitentePublico, FotoSaida, ItemSaida, LeilaoCartao, LeilaoCriado,
+                                 LeilaoCriar, LeilaoDetalhe)
 from app.tempo import agora, iso_utc
 
 ESTADOS_DO_CATALOGO = ("agendado", "em_andamento")
@@ -220,17 +220,20 @@ def catalogo(
 
 def detalhe(db: Session, leilao_id: int) -> LeilaoDetalhe:
     """Publico em qualquer estado, sem historico de lances, participantes ou vencedor."""
-    linha = db.execute(select(Leilao, Item).join(Item, Item.id == Leilao.item_id)
+    linha = db.execute(select(Leilao, Item, Usuario.nome, Usuario.ref_publica)
+                       .join(Item, Item.id == Leilao.item_id)
+                       .join(Usuario, Usuario.id == Leilao.comitente_id)
                        .where(Leilao.id == leilao_id)).first()
     if linha is None:
         raise nao_encontrado()
-    l, item = linha
+    l, item, nome_comitente, ref_comitente = linha
     lista = db.execute(select(FotoItem.url, FotoItem.ordem).where(FotoItem.item_id == item.id)
                        .order_by(FotoItem.ordem)).all()
     return LeilaoDetalhe(
         id=l.id,
         item=ItemSaida(id=item.id, nome=item.nome, descricao=item.descricao, categoria=item.categoria,
                        fotos=[FotoSaida(url=u, ordem=o) for u, o in lista]),
+        comitente=ComitentePublico(nome=nome_comitente, ref=ref_comitente),
         estado=l.estado, preco_inicial=dinheiro.texto(l.preco_inicial), preco_atual=dinheiro.texto(l.preco_atual),
         inicio=iso_utc(l.inicio), termino_vigente=iso_utc(l.termino_vigente), versao=l.versao,
     )
