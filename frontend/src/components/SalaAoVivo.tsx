@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ErroApi, NOME_DO_ESTADO, novaChave } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { formatarBRL, formatarDataHora } from "../lib/format";
+import { formatarBRL, formatarDataHora, formatarHora } from "../lib/format";
 import { useSala, type Pessoa } from "../lib/useSala";
 import { SeloEstado } from "./SeloEstado";
 
@@ -83,6 +83,18 @@ export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAltera
           </small>
         </div>
       )}
+
+      {/* RF15: enquanto ainda pode prorrogar, mostra o teto; no teto, aviso fixo. */}
+      {sala.estado === "em_andamento" && (sala.prorrogacao_esgotada ? (
+        <p className="aviso-sala aviso-sala--forte" role="status">
+          Prorrogação máxima atingida: o leilão encerra definitivamente às {formatarHora(sala.hard_end)}.
+          Novos lances não prorrogam mais.
+        </p>
+      ) : (
+        <p className="detalhe__legenda">
+          Lances no último minuto prorrogam o término, no máximo até {formatarHora(sala.hard_end)}.
+        </p>
+      ))}
 
       <dl className="detalhe__dados">
         <div><dt>Lance mínimo</dt><dd>{formatarBRL(sala.lance_minimo)}</dd></div>

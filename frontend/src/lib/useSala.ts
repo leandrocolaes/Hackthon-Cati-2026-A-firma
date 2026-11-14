@@ -21,6 +21,8 @@ export interface Snapshot {
   inicio: string;
   termino_original: string;
   termino_vigente: string;
+  hard_end: string; // RF15: término original + 10 min (teto das prorrogações)
+  prorrogacao_esgotada: boolean;
   preco_atual: string;
   lance_minimo: string;
   lider: Pessoa | null;

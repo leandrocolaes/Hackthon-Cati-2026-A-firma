@@ -27,6 +27,13 @@ export function formatarDataHora(iso: string): string {
   return formatoDataHora.format(new Date(iso));
 }
 
+const formatoHora = new Intl.DateTimeFormat("pt-BR", { timeStyle: "medium" });
+
+/** Só o horário com segundos (hard end da sala: o segundo importa). */
+export function formatarHora(iso: string): string {
+  return formatoHora.format(new Date(iso));
+}
+
 export function formatarDuracao(milissegundos: number): string {
   if (milissegundos <= 0) {
     return "agora";

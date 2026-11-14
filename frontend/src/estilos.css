@@ -1202,6 +1202,14 @@ p {
   margin: 0;
 }
 
+.aviso-sala--forte {
+  border-color: rgba(160, 60, 40, 0.45);
+  background: rgba(220, 120, 90, 0.14);
+  color: #7a2e1c;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .sala__ok {
   margin: 10px 0 0;
   color: var(--verde);
