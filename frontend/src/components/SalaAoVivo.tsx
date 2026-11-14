@@ -26,7 +26,8 @@ function contagem(ms: number): string {
 export function SalaAoVivo({ leilaoId, aoAlterar, modo = "participante" }:
   { leilaoId: number; aoAlterar?: () => void; modo?: ModoSala }) {
   const { sessaoExpirou } = useAuth();
-  const { sala, erro, aoVivo, deslocamento, recarregar } = useSala(leilaoId, true, sessaoExpirou, modo);
+  const { sala, erro, aoVivo, deslocamento, recarregar, superado, dispensarAviso } =
+    useSala(leilaoId, true, sessaoExpirou, modo);
   const espectador = modo === "espectador";
   // Versão nova com o leilão ainda agendado = o comitente editou (nada mais muda a versão
   // antes da abertura). A página recarrega nome, fotos e descrição, e mostra um aviso.
@@ -63,6 +64,14 @@ export function SalaAoVivo({ leilaoId, aoAlterar, modo = "participante" }:
         </p>
         <SeloEstado estado={NOME_DO_ESTADO[sala.estado] ?? "Agendado"} />
       </div>
+
+      {/* RF26: aviso instantâneo, interno à sala, uma única vez por leilão. */}
+      {superado && sala.estado === "em_andamento" && (
+        <p className="aviso-sala aviso-sala--forte" role="alert">
+          Seu lance foi superado. Lance mínimo agora: {formatarBRL(sala.lance_minimo)}.{" "}
+          <button type="button" className="botao-link" onClick={dispensarAviso}>OK</button>
+        </p>
+      )}
 
       {editado && sala.estado === "agendado" && (
         <p className="aviso-sala" role="status">

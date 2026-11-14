@@ -56,6 +56,8 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void,
   const [sala, setSala] = useState<Snapshot | null>(null);
   const [erro, setErro] = useState("");
   const [aoVivo, setAoVivo] = useState(false);
+  // RF26: o servidor manda "aviso": "lance_superado" no máximo uma vez por leilão.
+  const [superado, setSuperado] = useState(false);
   // Relógio do servidor - relógio do navegador (ms): a contagem usa o do servidor (RF16).
   const [deslocamento, setDeslocamento] = useState(0);
   const versao = useRef(-1);
@@ -91,6 +93,7 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void,
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.tipo === "estado_leilao") aplicar(msg.estado);
+        if (msg.aviso === "lance_superado") setSuperado(true);
       };
       ws.onclose = (e) => {
         setAoVivo(false);
@@ -127,5 +130,6 @@ export function useSala(leilaoId: number, ativa: boolean, aoExpirar: () => void,
     };
   }, [ativa, leilaoId, espectador, caminhoSnapshot, recarregar, aplicar, aoExpirar]);
 
-  return { sala, erro, aoVivo, deslocamento, recarregar };
+  const dispensarAviso = useCallback(() => setSuperado(false), []);
+  return { sala, erro, aoVivo, deslocamento, recarregar, superado, dispensarAviso };
 }
