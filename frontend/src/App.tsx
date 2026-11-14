@@ -9,6 +9,7 @@ import { Home } from "./pages/Home";
 import { LeilaoDetalhe } from "./pages/LeilaoDetalhe";
 import { MeusLeiloes } from "./pages/MeusLeiloes";
 import { NaoEncontrado } from "./pages/NaoEncontrado";
+import { PerfilComitente } from "./pages/PerfilComitente";
 
 function RolarAoNavegar() {
   const { pathname } = useLocation();
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/anunciar" element={<Anunciar />} />
             <Route path="/leiloes/:id/editar" element={<Anunciar />} />
             <Route path="/meus-leiloes" element={<MeusLeiloes />} />
+            <Route path="/comitentes/:ref" element={<PerfilComitente />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Routes>
         </div>

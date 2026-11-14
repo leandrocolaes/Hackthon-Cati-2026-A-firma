@@ -90,6 +90,7 @@ export interface CartaoApi {
 export interface DetalheApi {
   id: number;
   item: { id: number; nome: string; descricao: string; categoria: string; fotos: { url: string; ordem: number }[] };
+  comitente: { nome: string; ref: string }; // RF22: só o que é público
   estado: string;
   preco_inicial: string;
   preco_atual: string;

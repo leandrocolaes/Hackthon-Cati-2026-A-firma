@@ -19,6 +19,7 @@ export function LeilaoDetalhe() {
   const navegar = useNavigate();
   const local = useLocation();
   const [leilao, setLeilao] = useState<Leilao | null>(null);
+  const [comitente, setComitente] = useState<DetalheApi["comitente"] | null>(null);
   const [situacao, setSituacao] = useState<"carregando" | "ok" | "nao_encontrado" | "erro">("carregando");
 
   // Se o usuário for o comitente, vem daqui o que ele ainda pode fazer (editar/cancelar).
@@ -31,7 +32,7 @@ export function LeilaoDetalhe() {
   // Sem "carregando" na recarga: depois de editar/cancelar a página só se atualiza.
   const recarregar = useCallback(() => {
     api.get<DetalheApi>(`/api/leiloes/${id}`)
-      .then((d) => { setLeilao(leilaoDoDetalhe(d)); setSituacao("ok"); })
+      .then((d) => { setLeilao(leilaoDoDetalhe(d)); setComitente(d.comitente); setSituacao("ok"); })
       .catch((e: ErroApi) => setSituacao(e.status === 404 ? "nao_encontrado" : "erro"));
     if (usuario) {
       api.get<{ itens: MeuLeilaoApi[] }>("/api/meus-leiloes")
@@ -118,6 +119,11 @@ export function LeilaoDetalhe() {
 
           <h1>{leilao.item.nome}</h1>
           <p className="detalhe__descricao">{leilao.item.descricao}</p>
+          {comitente && (
+            <p className="detalhe__legenda">
+              Anunciado por <Link to={`/comitentes/${comitente.ref}`}>{comitente.nome}</Link>
+            </p>
+          )}
 
           {/* Com a sala aberta, o preço ao vivo fica na sala (este seria o da hora do carregamento). */}
           {!naSala && (
