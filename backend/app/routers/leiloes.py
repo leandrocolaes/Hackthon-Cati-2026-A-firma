@@ -7,9 +7,10 @@
     GET  /api/leiloes/{id}                    -> detalhe publico
     POST /api/leiloes/{id}/participantes      -> 200 {id, numero, apelido}
     POST /api/leiloes/{id}/cancelar           -> 200 {id, estado, encerrado_em, versao}
-    PUT  /api/leiloes/{id}                    -> 200 {id, item_id, estado, versao} (edicao)
+    PUT  /api/leiloes/{id}                    -> 200 {id, item_id, estado, versao} (edicao; corpo leva "versao")
     GET  /api/meus-leiloes                    -> leiloes do usuario com pode_editar/pode_cancelar
     GET  /api/comitentes/{ref}                -> perfil publico do comitente (RF22)
+    GET  /api/minhas-participacoes            -> leiloes em que entrei, em 4 grupos (RF27)
 """
 
 from typing import Literal
@@ -22,8 +23,8 @@ from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
 from app.schemas.leiloes import (Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, LeilaoEditar,
                                  ParticipanteSaida)
-from app.servicos import cancelamento, edicao, leiloes, participantes, perfil
-from app.sessoes import UsuarioLogado, usuario_atual
+from app.servicos import cancelamento, edicao, leiloes, participacoes, participantes, perfil
+from app.sessoes import UsuarioLogado, usuario_atual, usuario_atual_sem_renovar
 
 router = APIRouter(prefix="/api", tags=["leilões"])
 
@@ -102,3 +103,10 @@ def meus_leiloes(usuario: UsuarioLogado = Depends(usuario_atual), db: Session = 
 def perfil_publico(ref: str, db: Session = Depends(get_db)):
     """RF22: publico, sem login. So nome de exibicao e leiloes; nada privado."""
     return perfil.perfil(db, ref)
+
+
+@router.get("/minhas-participacoes")
+def minhas_participacoes(usuario: UsuarioLogado = Depends(usuario_atual_sem_renovar),
+                         db: Session = Depends(get_db)):
+    """RF27. Leitura (a tela atualiza sozinha): nao renova a sessao."""
+    return participacoes.minhas(db, usuario.id)
