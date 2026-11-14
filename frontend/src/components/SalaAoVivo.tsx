@@ -1,5 +1,5 @@
-// Sala ao vivo: estado da disputa, lance e cancelamento (RF08-RF12, RF15, RF16).
-import { useEffect, useState, type FormEvent } from "react";
+// Sala ao vivo: estado da disputa e lance (RF09-RF12, RF15, RF16). Editar/cancelar: AcoesDoComitente.
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ErroApi, NOME_DO_ESTADO, novaChave } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatarBRL, formatarDataHora } from "../lib/format";
@@ -23,9 +23,21 @@ function contagem(ms: number): string {
   return `${seg}s`;
 }
 
-export function SalaAoVivo({ leilaoId }: { leilaoId: number }) {
+export function SalaAoVivo({ leilaoId, aoAlterar }: { leilaoId: number; aoAlterar?: () => void }) {
   const { sessaoExpirou } = useAuth();
   const { sala, erro, aoVivo, deslocamento, recarregar } = useSala(leilaoId, true, sessaoExpirou);
+  // Versão nova com o leilão ainda agendado = o comitente editou (nada mais muda a versão
+  // antes da abertura). A página recarrega nome, fotos e descrição, e mostra um aviso.
+  const anterior = useRef<{ versao: number; estado: string } | null>(null);
+  const [editado, setEditado] = useState(false);
+  useEffect(() => {
+    if (!sala) return;
+    const antes = anterior.current;
+    anterior.current = { versao: sala.versao, estado: sala.estado };
+    if (!antes || sala.versao <= antes.versao) return;
+    if (antes.estado === "agendado" && sala.estado === "agendado") setEditado(true);
+    if (sala.estado !== antes.estado || sala.estado === "agendado") aoAlterar?.();
+  }, [sala, aoAlterar]);
   const [, setTique] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setTique((x) => x + 1), 1000);
@@ -39,8 +51,6 @@ export function SalaAoVivo({ leilaoId }: { leilaoId: number }) {
   const final = ["vendido", "encerrado_sem_lances", "cancelado"].includes(sala.estado);
   const alvo = sala.estado === "agendado" ? sala.inicio : sala.termino_vigente;
   const restante = Date.parse(alvo) - (Date.now() + deslocamento);
-  const podeCancelar = sala.sou_comitente &&
-    (sala.estado === "agendado" || (sala.estado === "em_andamento" && sala.total_lances === 0));
 
   return (
     <section className="sala" aria-label="Sala do leilão">
@@ -48,6 +58,13 @@ export function SalaAoVivo({ leilaoId }: { leilaoId: number }) {
         <p className="detalhe__categoria">Sala ao vivo {aoVivo ? "●" : "○ reconectando…"}</p>
         <SeloEstado estado={NOME_DO_ESTADO[sala.estado] ?? "Agendado"} />
       </div>
+
+      {editado && sala.estado === "agendado" && (
+        <p className="aviso-sala" role="status">
+          O comitente alterou este anúncio. Confira os dados atualizados.{" "}
+          <button type="button" className="botao-link" onClick={() => setEditado(false)}>OK</button>
+        </p>
+      )}
 
       {final ? (
         <div className="detalhe__preco">
@@ -80,7 +97,7 @@ export function SalaAoVivo({ leilaoId }: { leilaoId: number }) {
         !final && sala.motivo_impedimento && <p className="aviso-sala">{IMPEDIMENTOS[sala.motivo_impedimento]}</p>
       )}
 
-      {podeCancelar && <BotaoCancelar leilaoId={leilaoId} aoMudar={recarregar} />}
+      {/* Editar e cancelar ficam na página do leilão (AcoesDoComitente), fora da sala. */}
 
       <h3 className="sala__titulo">Últimos lances</h3>
       {sala.ultimos_lances.length === 0 ? (
@@ -156,24 +173,5 @@ function FormLance({ leilaoId, minimo, aoMudar, aoExpirar }:
       )}
       {mensagem && <p className={mensagem.ok ? "sala__ok" : "aviso-sala"} role="status">{mensagem.texto}</p>}
     </form>
-  );
-}
-
-function BotaoCancelar({ leilaoId, aoMudar }: { leilaoId: number; aoMudar: () => void }) {
-  const [erro, setErro] = useState("");
-  async function cancelar() {
-    if (!window.confirm("Cancelar este leilão? Não dá para desfazer.")) return;
-    try {
-      await api.post(`/api/leiloes/${leilaoId}/cancelar`);
-      aoMudar();
-    } catch (e) {
-      setErro((e as Error).message);
-    }
-  }
-  return (
-    <>
-      <button type="button" className="botao-link" onClick={cancelar}>Cancelar este leilão</button>
-      {erro && <p className="aviso-sala" role="alert">{erro}</p>}
-    </>
   );
 }

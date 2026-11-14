@@ -1,8 +1,8 @@
 // Criação de leilão (RF05, RF06, RF07; HU03). Cada foto vai a POST /api/fotos ao ser
 // escolhida; o leilão é criado só com as referências devolvidas pelo servidor.
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
-import { api, type ErroApi } from "../lib/api";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { api, type DetalheApi, type ErroApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatarBRL } from "../lib/format";
 
@@ -29,6 +29,9 @@ function paraCampoLocal(d: Date): string {
 export function Anunciar() {
   const { usuario, carregando } = useAuth();
   const navegar = useNavigate();
+  // Com :id na rota (/leiloes/:id/editar) a mesma tela edita um leilão agendado.
+  const { id } = useParams();
+  const editando = id !== undefined;
   const [cfg, setCfg] = useState<ConfigPublica | null>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -43,10 +46,32 @@ export function Anunciar() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    api.get<ConfigPublica>("/api/config-publica").then((c) => { setCfg(c); setCategoria(c.categorias[0]); });
-  }, []);
+    Promise.all([
+      api.get<ConfigPublica>("/api/config-publica"),
+      editando ? api.get<DetalheApi>(`/api/leiloes/${id}`) : Promise.resolve(null),
+    ]).then(([c, d]) => {
+      setCategoria(c.categorias[0]);
+      if (d) {
+        setNome(d.item.nome);
+        setDescricao(d.item.descricao);
+        setCategoria(d.item.categoria);
+        setPreco(d.preco_inicial);
+        setInicio(paraCampoLocal(new Date(d.inicio)));
+        setDuracaoMin(String((Date.parse(d.termino_vigente) - Date.parse(d.inicio)) / 60_000));
+        // Só fotos enviadas por aqui têm referência; as de exemplo (seed) precisam ser trocadas.
+        const ordenadas = [...d.item.fotos].sort((a, b) => a.ordem - b.ordem);
+        const proprias = ordenadas.filter((f) => f.url.startsWith("/api/fotos/"));
+        setFotos(proprias.map((f) => ({ referencia: f.url.slice("/api/fotos/".length), url: f.url })));
+        if (proprias.length < ordenadas.length) setErroFoto("As fotos de exemplo não podem ser mantidas: envie fotos novas.");
+      }
+      setCfg(c);
+    }).catch((e: ErroApi) => setErro(e.message));
+  }, [editando, id]);
 
-  if (!carregando && !usuario) return <Navigate to="/entrar?voltar=/anunciar" replace />;
+  if (!carregando && !usuario) {
+    const voltar = editando ? `/leiloes/${id}/editar` : "/anunciar";
+    return <Navigate to={`/entrar?voltar=${encodeURIComponent(voltar)}`} replace />;
+  }
 
   async function escolherFotos(arquivos: FileList | null) {
     if (!cfg || !arquivos) return;
@@ -78,14 +103,17 @@ export function Anunciar() {
     setErro("");
     setEnviando(true);
     try {
-      const r = await api.post<{ id: number }>("/api/leiloes", {
+      const corpo = {
         nome, descricao, categoria,
         preco_inicial: preco.trim().replace(",", "."),
         // Horário digitado é LOCAL; toISOString() envia o instante em UTC com "Z" (RF19).
         inicio: new Date(inicio).toISOString(),
         duracao_segundos: Math.round(Number(duracaoMin) * 60),
         fotos: fotos.map((f) => f.referencia), // a ordem aqui é a ordem de exibição
-      });
+      };
+      const r = editando
+        ? await api.put<{ id: number }>(`/api/leiloes/${id}`, corpo)
+        : await api.post<{ id: number }>("/api/leiloes", corpo);
       navegar(`/leiloes/${r.id}`);
     } catch (err) {
       setErro((err as Error).message);
@@ -94,13 +122,17 @@ export function Anunciar() {
     }
   }
 
-  if (!cfg) return <main className="detalhe"><p className="detalhe__legenda">Carregando…</p></main>;
+  if (!cfg) {
+    return <main className="detalhe"><p className={erro ? "aviso-sala" : "detalhe__legenda"}>{erro || "Carregando…"}</p></main>;
+  }
   return (
     <main className="detalhe">
-      <Link className="voltar" to="/">← Voltar para o catálogo</Link>
+      {editando
+        ? <Link className="voltar" to={`/leiloes/${id}`}>← Voltar para o leilão</Link>
+        : <Link className="voltar" to="/">← Voltar para o catálogo</Link>}
       <article className="detalhe__painel formulario">
-        <p className="etiqueta">Novo anúncio</p>
-        <h1>Anunciar item</h1>
+        <p className="etiqueta">{editando ? "Editar anúncio" : "Novo anúncio"}</p>
+        <h1>{editando ? "Editar leilão" : "Anunciar item"}</h1>
         <form onSubmit={enviar}>
           <label className="campo">
             Nome <small>({cfg.item.nome_minimo}–{cfg.item.nome_maximo} caracteres)</small>
@@ -155,7 +187,7 @@ export function Anunciar() {
           {erro && <p className="aviso-sala" role="alert">{erro}</p>}
           <button className="botao botao--principal botao--largo"
             disabled={enviando || enviandoFotos > 0 || fotos.length < cfg.item.fotos_minimas}>
-            {enviando ? "Enviando…" : "Criar leilão"}
+            {enviando ? "Enviando…" : editando ? "Salvar alterações" : "Criar leilão"}
           </button>
         </form>
       </article>

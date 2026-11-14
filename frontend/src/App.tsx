@@ -7,6 +7,7 @@ import { Entrar } from "./pages/Entrar";
 import { Rodape } from "./components/Rodape";
 import { Home } from "./pages/Home";
 import { LeilaoDetalhe } from "./pages/LeilaoDetalhe";
+import { MeusLeiloes } from "./pages/MeusLeiloes";
 import { NaoEncontrado } from "./pages/NaoEncontrado";
 
 function RolarAoNavegar() {
@@ -32,6 +33,8 @@ export default function App() {
             <Route path="/leiloes/:id" element={<LeilaoDetalhe />} />
             <Route path="/entrar" element={<Entrar />} />
             <Route path="/anunciar" element={<Anunciar />} />
+            <Route path="/leiloes/:id/editar" element={<Anunciar />} />
+            <Route path="/meus-leiloes" element={<MeusLeiloes />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Routes>
         </div>

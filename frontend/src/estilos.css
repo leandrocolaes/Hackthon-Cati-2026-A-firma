@@ -1120,3 +1120,36 @@ p {
   line-height: 22px;
   cursor: pointer;
 }
+
+/* ---------- Meus leilões e ações do comitente ---------- */
+.acoes-comitente {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.meus {
+  display: grid;
+  gap: 16px;
+  max-width: 820px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meus__item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.meus__foto .foto-leilao {
+  border-radius: 12px;
+}
+
+.meus__info .detalhe__topo {
+  gap: 12px;
+}

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Leilao } from "../classes/Leilao";
+import { AcoesDoComitente } from "../components/AcoesDoComitente";
 import { FotoLeilao } from "../components/FotoLeilao";
 import { SalaAoVivo } from "../components/SalaAoVivo";
 import { SeloEstado } from "../components/SeloEstado";
-import { api, ErroApi, leilaoDoDetalhe, type DetalheApi } from "../lib/api";
+import { api, ErroApi, leilaoDoDetalhe, type DetalheApi, type MeuLeilaoApi } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { formatarBRL, formatarDataHora } from "../lib/format";
 import { useRelogio } from "../lib/useRelogio";
@@ -20,12 +21,28 @@ export function LeilaoDetalhe() {
   const [leilao, setLeilao] = useState<Leilao | null>(null);
   const [situacao, setSituacao] = useState<"carregando" | "ok" | "nao_encontrado" | "erro">("carregando");
 
+  // Se o usuário for o comitente, vem daqui o que ele ainda pode fazer (editar/cancelar).
+  const [meu, setMeu] = useState<MeuLeilaoApi | null>(null);
+
   useEffect(() => {
     setSituacao("carregando");
+  }, [id]);
+
+  // Sem "carregando" na recarga: depois de editar/cancelar a página só se atualiza.
+  const recarregar = useCallback(() => {
     api.get<DetalheApi>(`/api/leiloes/${id}`)
       .then((d) => { setLeilao(leilaoDoDetalhe(d)); setSituacao("ok"); })
       .catch((e: ErroApi) => setSituacao(e.status === 404 ? "nao_encontrado" : "erro"));
-  }, [id]);
+    if (usuario) {
+      api.get<{ itens: MeuLeilaoApi[] }>("/api/meus-leiloes")
+        .then((r) => setMeu(r.itens.find((l) => String(l.id) === id) ?? null))
+        .catch(() => setMeu(null));
+    } else {
+      setMeu(null);
+    }
+  }, [id, usuario]);
+
+  useEffect(() => { recarregar(); }, [recarregar]);
 
   function entrarNaSala() {
     if (!usuario) {
@@ -130,8 +147,10 @@ export function LeilaoDetalhe() {
             </div>
           </dl>
 
+          {meu && <AcoesDoComitente leilao={meu} aoMudar={recarregar} />}
+
           {naSala && usuario ? (
-            <SalaAoVivo leilaoId={leilao.id} />
+            <SalaAoVivo leilaoId={leilao.id} aoAlterar={recarregar} />
           ) : (
             <button
               type="button"

@@ -44,6 +44,8 @@ export const api = {
       headers: dados === undefined ? {} : { "Content-Type": "application/json" },
       body: dados === undefined ? undefined : JSON.stringify(dados),
     }),
+  put: <T>(caminho: string, dados: unknown) =>
+    pedir<T>(caminho, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) }),
   delete: <T>(caminho: string) => pedir<T>(caminho, { method: "DELETE" }),
   // multipart: o navegador define o Content-Type com o boundary sozinho.
   enviarArquivo: <T>(caminho: string, campo: string, arquivo: File) => {
@@ -93,6 +95,23 @@ export interface DetalheApi {
   preco_atual: string;
   inicio: string;
   termino_vigente: string;
+}
+
+/** GET /api/meus-leiloes: o servidor diz o que o comitente ainda pode fazer. */
+export interface MeuLeilaoApi {
+  id: number;
+  nome: string;
+  categoria: string;
+  foto_principal: string | null;
+  estado: string;
+  preco_inicial: string;
+  preco_atual: string;
+  inicio: string;
+  termino_vigente: string;
+  total_lances: number;
+  participantes: number;
+  pode_editar: boolean;
+  pode_cancelar: boolean;
 }
 
 /** Catálogo: só o necessário para o cartão (o catálogo não traz descrição nem lances). */
