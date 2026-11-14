@@ -10,19 +10,37 @@ from decimal import Decimal
 from app.config import Configuracoes
 
 
-def lance_minimo(preco_inicial: Decimal, preco_atual: Decimal, tem_lider: bool, cfg: Configuracoes) -> Decimal:
-    """RF14. DECISAO da equipe: incremento fixo (BID_INCREMENT_CENTS, padrao R$ 1,00).
+# RF14 (fase 2): incremento pela faixa do preco atual confirmado. Cada linha vale
+# para precos MENORES que o limite; acima do ultimo limite vale o ultimo incremento.
+FAIXAS_INCREMENTO: tuple[tuple[Decimal, Decimal], ...] = (
+    (Decimal("100.00"), Decimal("1.00")),
+    (Decimal("500.00"), Decimal("5.00")),
+    (Decimal("1000.00"), Decimal("10.00")),
+    (Decimal("5000.00"), Decimal("50.00")),
+    (Decimal("25000.00"), Decimal("100.00")),
+)
+INCREMENTO_MAXIMO = Decimal("500.00")
 
-    Sem lances, o minimo e o preco inicial (o primeiro lance pode ser igual a ele).
-    Com lances, e o preco atual + incremento. "Ha lance" e decidido pelo lider,
-    nunca comparando precos (docs/dominio.md, item 6).
 
-    Evolucao planejada: incremento por faixa de preco e crescente com o numero de
-    prorrogacoes; basta trocar o corpo desta funcao (leiloes.prorrogacoes ja existe).
+def incremento(preco_atual: Decimal) -> Decimal:
+    """Incremento da faixa de preco_atual (tabela da secao 2.2 da fase 2)."""
+    for limite, valor in FAIXAS_INCREMENTO:
+        if preco_atual < limite:
+            return valor
+    return INCREMENTO_MAXIMO
+
+
+def lance_minimo(preco_inicial: Decimal, preco_atual: Decimal, tem_lider: bool) -> Decimal:
+    """RF14. Sem lances, o minimo e o preco inicial (o primeiro lance pode ser igual a ele).
+    Com lances, e o preco atual + incremento da faixa desse preco atual. "Ha lance" e
+    decidido pelo lider, nunca comparando precos (docs/dominio.md, item 6).
+
+    A faixa sai sempre do estado confirmado no servidor (preco_atual lido sob a trava),
+    nunca do valor que o navegador mostrava.
     """
     if not tem_lider:
         return preco_inicial
-    return preco_atual + Decimal(cfg.incremento_centavos) / 100
+    return preco_atual + incremento(preco_atual)
 
 
 def novo_termino(instante: datetime, termino_vigente: datetime, termino_original: datetime,

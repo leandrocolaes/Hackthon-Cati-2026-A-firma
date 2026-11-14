@@ -60,9 +60,9 @@ class ConfiguracoesTest(unittest.TestCase):
 
     def test_valores_nao_positivos_ou_nao_inteiros_sao_recusados(self):
         for valores in (
-            {"SESSION_IDLE_MINUTES": 0}, {"BID_INCREMENT_CENTS": -1},
+            {"SESSION_IDLE_MINUTES": 0}, {"AUCTION_EXTENSION_WINDOW_SECONDS": -1},
             {"PHOTO_MAX_BYTES": 0}, {"AUCTION_EXTENSION_SECONDS": 0},
-            {"BID_INCREMENT_CENTS": "1.5"},
+            {"AUCTION_EXTENSION_SECONDS": "1.5"},
         ):
             with self.subTest(valores=valores), self.assertRaises(ValidationError):
                 self.config(**valores)

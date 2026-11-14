@@ -8,7 +8,7 @@ import unittest
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost/unused")
 
 from app.config import Configuracoes  # noqa: E402
-from app.regras import impedimento, lance_minimo, novo_termino  # noqa: E402
+from app.regras import impedimento, incremento, lance_minimo, novo_termino  # noqa: E402
 
 CFG = Configuracoes(_env_file=None)
 T0 = datetime(2026, 11, 14, 18, 0, tzinfo=timezone.utc)
@@ -16,10 +16,31 @@ T0 = datetime(2026, 11, 14, 18, 0, tzinfo=timezone.utc)
 
 class RegrasTest(unittest.TestCase):
     def test_minimo_sem_lances_e_o_preco_inicial(self):
-        self.assertEqual(lance_minimo(Decimal("100.00"), Decimal("100.00"), False, CFG), Decimal("100.00"))
+        self.assertEqual(lance_minimo(Decimal("100.00"), Decimal("100.00"), False), Decimal("100.00"))
 
     def test_minimo_com_lances_soma_incremento_mesmo_com_precos_iguais(self):
-        self.assertEqual(lance_minimo(Decimal("100.00"), Decimal("100.00"), True, CFG), Decimal("101.00"))
+        self.assertEqual(lance_minimo(Decimal("100.00"), Decimal("100.00"), True), Decimal("105.00"))
+
+    def test_incremento_em_cada_fronteira_de_faixa(self):
+        casos = {
+            "0.01": "1.00", "99.99": "1.00",
+            "100.00": "5.00", "499.99": "5.00",
+            "500.00": "10.00", "999.99": "10.00",
+            "1000.00": "50.00", "4999.99": "50.00",
+            "5000.00": "100.00", "24999.99": "100.00",
+            "25000.00": "500.00", "1000000.00": "500.00",
+        }
+        for preco, esperado in casos.items():
+            with self.subTest(preco=preco):
+                self.assertEqual(incremento(Decimal(preco)), Decimal(esperado))
+
+    def test_minimo_usa_a_faixa_do_preco_atual_confirmado(self):
+        casos = {"99.99": "100.99", "100.00": "105.00", "499.99": "504.99", "500.00": "510.00",
+                 "999.99": "1009.99", "1000.00": "1050.00", "4999.99": "5049.99", "5000.00": "5100.00",
+                 "24999.99": "25099.99", "25000.00": "25500.00"}
+        for atual, esperado in casos.items():
+            with self.subTest(atual=atual):
+                self.assertEqual(lance_minimo(Decimal("1.00"), Decimal(atual), True), Decimal(esperado))
 
     def test_prorrogacao_so_dentro_da_janela(self):
         fim = T0 + timedelta(minutes=5)

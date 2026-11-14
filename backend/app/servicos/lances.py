@@ -97,7 +97,7 @@ def _processar(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int,
         db.rollback()
         raise ErroApi(401, "sessao_invalida", "Sessão inválida ou expirada. Entre novamente.")
 
-    minimo = lance_minimo(leilao.preco_inicial, leilao.preco_atual, leilao.lider_id is not None, cfg)
+    minimo = lance_minimo(leilao.preco_inicial, leilao.preco_atual, leilao.lider_id is not None)
     participante = db.execute(select(exists().where(
         Participante.leilao_id == leilao_id, Participante.usuario_id == usuario_id))).scalar()
     if not participante:

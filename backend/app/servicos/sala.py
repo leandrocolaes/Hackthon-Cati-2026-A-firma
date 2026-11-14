@@ -57,7 +57,7 @@ def snapshot(db: Session, cfg: Configuracoes, leilao_id: int, usuario_id: int) -
         "termino_vigente": iso_utc(leilao.termino_vigente),
         "preco_atual": dinheiro.texto(leilao.preco_atual),
         "lance_minimo": dinheiro.texto(lance_minimo(leilao.preco_inicial, leilao.preco_atual,
-                                                    leilao.lider_id is not None, cfg)),
+                                                    leilao.lider_id is not None)),
         "lider": quem(leilao.lider_id) if leilao.lider_id else None,
         "total_lances": total,
         "ultimos_lances": [{"id": i, **quem(u), "valor": dinheiro.texto(v), "criado_em": iso_utc(c)}

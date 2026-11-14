@@ -63,7 +63,7 @@ class ConcorrenciaTest(TesteLeilao):
         for r in rs:
             if r.status != 201:
                 self.assertEqual(r.corpo["codigo"], "lance_abaixo_do_minimo")
-                self.assertEqual(r.corpo["detalhes"]["lance_minimo"], "101.00")  # ja o novo minimo
+                self.assertEqual(r.corpo["detalhes"]["lance_minimo"], "105.00")  # ja o novo minimo (faixa R$ 100-499,99: +R$ 5,00)
         self.assertEqual(len(self.invariantes(leilao)), 1)
 
     def test_rajadas_mantem_invariantes(self):

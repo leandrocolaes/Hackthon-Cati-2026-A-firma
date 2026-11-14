@@ -82,7 +82,7 @@ class TempoRealTest(TesteLeilao):
             self.assertEqual(r.status_code, 201)
             s = self.esperar(ws, lambda s: s["total_lances"] == 1)
             self.assertEqual(s["versao"], r.json()["versao"])
-            self.assertEqual(s["lance_minimo"], "101.00")
+            self.assertEqual(s["lance_minimo"], "105.00")
             # Fechamento feito pelo caminho do worker (outro processo na VM).
             self.banco.sql("UPDATE leiloes SET termino_vigente = clock_timestamp(), "
                            "termino_original = clock_timestamp() WHERE id=:id", id=self.leilao)
