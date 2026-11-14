@@ -3,3 +3,6 @@ node_modules/
 dist/
 __pycache__/
 .venv/
+
+# Cópias de segurança do banco (podem conter dados de usuários)
+backup-*.sql

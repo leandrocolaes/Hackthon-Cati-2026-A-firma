@@ -1,16 +1,19 @@
 # Sobe os 3 serviços: banco (db), API (backend) e site (frontend + Nginx).
 # Uso: docker compose up --build   → abra http://localhost
+#      docker compose up -d --build  (em segundo plano, como na VM)
+# Precisa do arquivo .env (cp .env.example .env). Sem ele o Compose para com uma mensagem clara.
 services:
   db:
     image: postgres:17
+    restart: unless-stopped               # volta sozinho depois de queda ou reinício da VM
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - dbdata:/var/lib/postgresql/data   # os dados sobrevivem a reinícios
+      - dbdata:/var/lib/postgresql/data   # os dados sobrevivem a reinícios e a "docker compose down"
     ports:
-      - "127.0.0.1:5432:5432"             # só acessível da própria máquina (para desenvolvimento)
+      - "127.0.0.1:5433:5432"             # só acessível da própria máquina (para desenvolvimento)
     healthcheck:                          # o backend só sobe quando o banco aceita conexões
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 2s
@@ -18,17 +21,37 @@ services:
 
   backend:
     build: ./backend
-    environment:
+    restart: unless-stopped
+    env_file: .env                        # toda variável nova do .env (sessão, cookie etc.) chega ao backend sem editar este arquivo
+    environment:                          # (o que está aqui tem prioridade sobre o env_file)
       # "db" é o nome do serviço acima: dentro do Compose, os serviços se acham pelo nome
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:                          # só para "docker compose ps" mostrar (healthy); não bloqueia o frontend
+      # Chama /api/health e exige "db": "ok" (a rota responde 200 mesmo quando o banco falha).
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import json, sys, urllib.request
+          try:
+              dados = json.load(urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=3))
+          except Exception:
+              sys.exit(1)
+          sys.exit(0 if dados.get("db") == "ok" else 1)
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   frontend:
     build: ./frontend
+    restart: unless-stopped
     ports:
-      - "80:80"                           # a única porta aberta para o mundo
+      - "${HTTP_PORT:-80}:80"             # a única porta aberta para o mundo (80 por padrão; HTTP_PORT só para quem já usa a 80)
     depends_on:
       - backend
 
