@@ -199,7 +199,7 @@ export function Home() {
 
           <button
             type="button"
-            className="busca__limpar"
+            className="botao botao--contorno busca__limpar"
             onClick={limparFiltros}
             disabled={!temFiltro}
           >
