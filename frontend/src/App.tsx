@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Cabecalho } from "./components/Cabecalho";
 import { ProvedorAuth } from "./lib/auth";
+import { Anunciar } from "./pages/Anunciar";
 import { Entrar } from "./pages/Entrar";
 import { Rodape } from "./components/Rodape";
 import { Home } from "./pages/Home";
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/leiloes/:id" element={<LeilaoDetalhe />} />
             <Route path="/entrar" element={<Entrar />} />
+            <Route path="/anunciar" element={<Anunciar />} />
             <Route path="*" element={<NaoEncontrado />} />
           </Routes>
         </div>

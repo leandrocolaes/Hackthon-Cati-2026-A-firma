@@ -25,6 +25,12 @@ export function Cabecalho() {
           </NavLink>
           {usuario ? (
             <>
+              <NavLink
+                to="/anunciar"
+                className={({ isActive }) => `navegacao__item${isActive ? " ativo" : ""}`}
+              >
+                Anunciar
+              </NavLink>
               <span className="navegacao__usuario">Olá, {usuario.nome}</span>
               <button type="button" className="navegacao__item botao-link" onClick={sair}>
                 Sair
