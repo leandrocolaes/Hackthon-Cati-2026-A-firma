@@ -1,4 +1,4 @@
-// Editar e cancelar, só para o comitente. Os botões aparecem quando o servidor diz que
+// Editar, cancelar e relistar (RF28), só para o comitente. Os botões aparecem quando o servidor diz que
 // pode (GET /api/meus-leiloes); ao receber o pedido, o servidor confere de novo.
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -23,11 +23,14 @@ export function AcoesDoComitente({ leilao, aoMudar }: { leilao: MeuLeilaoApi; ao
     }
   }
 
-  if (!leilao.pode_editar && !leilao.pode_cancelar) return null;
+  if (!leilao.pode_editar && !leilao.pode_cancelar && !leilao.pode_relistar) return null;
   return (
     <div className="acoes-comitente">
       {leilao.pode_editar && (
         <Link className="botao botao--dourado" to={`/leiloes/${leilao.id}/editar`}>Editar</Link>
+      )}
+      {leilao.pode_relistar && (
+        <Link className="botao botao--dourado" to={`/leiloes/${leilao.id}/relistar`}>Relistar</Link>
       )}
       {leilao.pode_cancelar && (
         <button type="button" className="botao-link" onClick={cancelar} disabled={cancelando}>

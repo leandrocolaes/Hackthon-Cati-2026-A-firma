@@ -115,6 +115,7 @@ export interface MeuLeilaoApi {
   versao: number; // RF23
   pode_editar: boolean;
   pode_cancelar: boolean;
+  pode_relistar: boolean; // RF28: vendido, encerrado sem lances ou cancelado
 }
 
 /** Catálogo: só o necessário para o cartão (o catálogo não traz descrição nem lances). */

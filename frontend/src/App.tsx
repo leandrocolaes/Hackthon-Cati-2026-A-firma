@@ -36,7 +36,8 @@ export default function App() {
             <Route path="/leiloes/:id" element={<LeilaoDetalhe />} />
             <Route path="/entrar" element={<Entrar />} />
             <Route path="/anunciar" element={<Anunciar />} />
-            <Route path="/leiloes/:id/editar" element={<Anunciar />} />
+            <Route path="/leiloes/:id/editar" element={<Anunciar modo="editar" />} />
+            <Route path="/leiloes/:id/relistar" element={<Anunciar modo="relistar" />} />
             <Route path="/meus-leiloes" element={<MeusLeiloes />} />
             <Route path="/minhas-participacoes" element={<MinhasParticipacoes />} />
             <Route path="/comitentes/:ref" element={<PerfilComitente />} />

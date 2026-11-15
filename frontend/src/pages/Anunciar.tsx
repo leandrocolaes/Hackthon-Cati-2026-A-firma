@@ -26,12 +26,14 @@ function paraCampoLocal(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function Anunciar() {
+export function Anunciar({ modo = "criar" }: { modo?: "criar" | "editar" | "relistar" }) {
   const { usuario, carregando } = useAuth();
   const navegar = useNavigate();
-  // Com :id na rota (/leiloes/:id/editar) a mesma tela edita um leilão agendado.
+  // Com :id na rota a mesma tela edita (/leiloes/:id/editar) um leilão agendado ou
+  // relista (/leiloes/:id/relistar, RF28) um finalizado/cancelado num leilão NOVO.
   const { id } = useParams();
-  const editando = id !== undefined;
+  const editando = modo === "editar" && id !== undefined;
+  const relistando = modo === "relistar" && id !== undefined;
   const [cfg, setCfg] = useState<ConfigPublica | null>(null);
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -47,15 +49,21 @@ export function Anunciar() {
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  const aplicarDetalhe = useCallback((d: DetalheApi) => {
+  const aplicarDetalhe = useCallback((d: DetalheApi, copiaParaRelistar = false) => {
     setConflito(false);
     setNome(d.item.nome);
     setDescricao(d.item.descricao);
     setCategoria(d.item.categoria);
     setPreco(d.preco_inicial);
-    setInicio(paraCampoLocal(new Date(d.inicio)));
-    setDuracaoMin(String((Date.parse(d.termino_vigente) - Date.parse(d.inicio)) / 60_000));
-    setVersao(d.versao);
+    if (copiaParaRelistar) {
+      // RF28: datas e prazo do leilão anterior não são herdados: novo início e duração.
+      setInicio("");
+      setDuracaoMin("");
+    } else {
+      setInicio(paraCampoLocal(new Date(d.inicio)));
+      setDuracaoMin(String((Date.parse(d.termino_vigente) - Date.parse(d.inicio)) / 60_000));
+      setVersao(d.versao);
+    }
     // Só fotos enviadas por aqui têm referência; as de exemplo (seed) precisam ser trocadas.
     const ordenadas = [...d.item.fotos].sort((a, b) => a.ordem - b.ordem);
     const proprias = ordenadas.filter((f) => f.url.startsWith("/api/fotos/"));
@@ -68,15 +76,15 @@ export function Anunciar() {
     let ativo = true;
     Promise.all([
       api.get<ConfigPublica>("/api/config-publica"),
-      editando ? api.get<DetalheApi>(`/api/leiloes/${id}`) : Promise.resolve(null),
+      editando || relistando ? api.get<DetalheApi>(`/api/leiloes/${id}`) : Promise.resolve(null),
     ]).then(([c, d]) => {
       if (!ativo) return;
       setCfg(c);
       setCategoria(c.categorias[0]);
-      if (d) aplicarDetalhe(d);
+      if (d) aplicarDetalhe(d, relistando);
     }).catch((e: ErroApi) => { if (ativo) setErro(e.message); });
     return () => { ativo = false; };
-  }, [editando, id, aplicarDetalhe]);
+  }, [editando, relistando, id, aplicarDetalhe]);
 
   async function recarregarAtual() {
     setErro("");
@@ -91,7 +99,7 @@ export function Anunciar() {
   }
 
   if (!carregando && !usuario) {
-    const voltar = editando ? `/leiloes/${id}/editar` : "/anunciar";
+    const voltar = editando || relistando ? `/leiloes/${id}/${modo}` : "/anunciar";
     return <Navigate to={`/entrar?voltar=${encodeURIComponent(voltar)}`} replace />;
   }
 
@@ -139,7 +147,9 @@ export function Anunciar() {
       };
       const r = editando
         ? await api.put<{ id: number }>(`/api/leiloes/${id}`, { ...corpo, versao })
-        : await api.post<{ id: number }>("/api/leiloes", corpo);
+        : relistando
+          ? await api.post<{ id: number }>(`/api/leiloes/${id}/relistar`, corpo)
+          : await api.post<{ id: number }>("/api/leiloes", corpo);
       navegar(`/leiloes/${r.id}`);
     } catch (err) {
       const e = err as ErroApi;
@@ -158,12 +168,18 @@ export function Anunciar() {
   }
   return (
     <main className="detalhe">
-      {editando
+      {editando || relistando
         ? <Link className="voltar" to={`/leiloes/${id}`}>← Voltar para o leilão</Link>
         : <Link className="voltar" to="/">← Voltar para o catálogo</Link>}
       <article className="detalhe__painel formulario">
-        <p className="etiqueta">{editando ? "Editar anúncio" : "Novo anúncio"}</p>
-        <h1>{editando ? "Editar leilão" : "Anunciar item"}</h1>
+        <p className="etiqueta">{editando ? "Editar anúncio" : relistando ? "Relistar item" : "Novo anúncio"}</p>
+        <h1>{editando ? "Editar leilão" : relistando ? "Anunciar de novo" : "Anunciar item"}</h1>
+        {relistando && (
+          <p className="detalhe__legenda">
+            Dados copiados do leilão anterior: revise tudo e escolha novo início e duração. O novo
+            leilão começa do zero, sem lances, participantes nem resultado do anterior.
+          </p>
+        )}
         <form onSubmit={enviar}>
           <label className="campo">
             Nome <small>({cfg.item.nome_minimo}–{cfg.item.nome_maximo} caracteres)</small>
@@ -229,7 +245,7 @@ export function Anunciar() {
           {erro && <p className="aviso-sala" role="alert">{erro}</p>}
           <button className="botao botao--principal botao--largo"
             disabled={enviando || enviandoFotos > 0 || fotos.length < cfg.item.fotos_minimas}>
-            {enviando ? "Enviando…" : editando ? "Salvar alterações" : "Criar leilão"}
+            {enviando ? "Enviando…" : editando ? "Salvar alterações" : relistando ? "Criar novo leilão" : "Criar leilão"}
           </button>
         </form>
       </article>
