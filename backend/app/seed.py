@@ -1,5 +1,9 @@
 """Dados de demonstracao (RNF04): 1 comitente, 3 compradores e leiloes em todos os estados.
 
+Fase 2: precos em varias faixas de incremento (RF14), um leilao ja no hard end (RF15),
+o perfil da Ana com ativos e encerrados (RF22) e o Bruno (comprador1) com leiloes nos
+quatro grupos de "Minhas participacoes" (RF27). Os encerrados servem para relistar (RF28).
+
 Uso (na raiz do repositorio, com o sistema no ar e as migracoes aplicadas):
     docker compose exec backend python -m app.seed
 
@@ -65,8 +69,14 @@ def _leilao(db, comitente, nome, categoria, preco, inicio, duracao_min, estado="
     ).returning(Leilao.id)).scalar_one()
 
 
+def _participantes(db, leilao_id, usuarios, primeiro=1) -> None:
+    for numero, usuario in enumerate(usuarios, start=primeiro):
+        db.execute(insert(Participante).values(leilao_id=leilao_id, usuario_id=usuario, numero=numero))
+
+
 def _lances(db, leilao_id, compradores, valores, instante) -> int:
-    """Participantes e lances alternados (nunca o mesmo autor duas vezes seguidas)."""
+    """Participantes e lances alternados (nunca o mesmo autor duas vezes seguidas).
+    Os valores respeitam o incremento por faixa (RF14) do preco anterior."""
     for numero, usuario in enumerate(compradores, start=1):
         db.execute(insert(Participante).values(leilao_id=leilao_id, usuario_id=usuario, numero=numero))
     ultimo = None
@@ -95,8 +105,20 @@ def popular(db: Session) -> dict[str, int]:
 
     andamento = _leilao(db, comitente, "Notebook 14 polegadas", "Eletrônicos", "1500.00",
                         t - timedelta(minutes=5), 20, estado="em_andamento")
-    _lances(db, andamento, compradores[:2], ["1500.00", "1501.00", "1550.00"], t)
+    _lances(db, andamento, compradores[:2], ["1500.00", "1550.00", "1600.00"], t)  # faixa R$ 50
     criados["em_andamento"] = andamento
+
+    # RF15: ja prorrogado ate o hard end (termino original + 10 min). A sala mostra o aviso
+    # persistente de encerramento definitivo. Termina em 5 min.
+    no_teto = _leilao(db, comitente, "Relógio de bolso", "Colecionáveis", "4800.00",
+                      t - timedelta(minutes=15), 10, estado="em_andamento")
+    _lances(db, no_teto, [compradores[2], compradores[0]], ["4800.00", "4850.00", "4900.00"], t)
+    db.execute(update(Leilao).where(Leilao.id == no_teto).values(
+        termino_vigente=t + timedelta(minutes=5), prorrogacoes=5, versao=Leilao.versao + 1))
+    criados["prorrogacao_esgotada"] = no_teto
+
+    # Faixa mais alta (incremento de R$ 500,00).
+    _leilao(db, comitente, "Gravura emoldurada", "Casa e decoração", "26000.00", t + timedelta(minutes=30), 15)
 
     vendido = _leilao(db, comitente, "Luminária de mesa", "Casa e decoração", "60.00",
                       t - timedelta(hours=2), 30, estado="em_andamento")
@@ -104,16 +126,28 @@ def popular(db: Session) -> dict[str, int]:
     db.execute(update(Leilao).where(Leilao.id == vendido).values(
         estado="vendido", lance_vencedor_id=vencedor, encerrado_em=t - timedelta(hours=1, minutes=30),
         versao=Leilao.versao + 1))
-    criados["vendido"] = vendido
+    criados["vendido"] = vendido  # vencedor: comprador3 (comprador1 fica em "Nao vencidos")
+
+    # RF27: um vendido para o comprador1 (grupo "Vencidos").
+    ganho = _leilao(db, comitente, "Fone sem fio", "Eletrônicos", "150.00",
+                    t - timedelta(hours=4), 30, estado="em_andamento")
+    vencedor = _lances(db, ganho, [compradores[1], compradores[0]], ["150.00", "155.00", "160.00", "165.00"],
+                       t - timedelta(hours=3))
+    db.execute(update(Leilao).where(Leilao.id == ganho).values(
+        estado="vendido", lance_vencedor_id=vencedor, encerrado_em=t - timedelta(hours=3, minutes=30),
+        versao=Leilao.versao + 1))
+    criados["vencido_por_comprador1"] = ganho
 
     sem_lances = _leilao(db, comitente, "Coleção de livros", "Livros e mídia", "120.00",
                          t - timedelta(hours=3), 30, estado="em_andamento")
     db.execute(update(Leilao).where(Leilao.id == sem_lances).values(
         estado="encerrado_sem_lances", encerrado_em=t - timedelta(hours=2, minutes=30), versao=1))
+    _participantes(db, sem_lances, compradores[:1])  # comprador1 entrou e nao deu lance
     criados["encerrado_sem_lances"] = sem_lances
 
     cancelado = _leilao(db, comitente, "Jaqueta de couro", "Moda", "200.00", t + timedelta(hours=1), 30)
     db.execute(update(Leilao).where(Leilao.id == cancelado).values(estado="cancelado", encerrado_em=t, versao=1))
+    _participantes(db, cancelado, compradores[:1])  # grupo "Cancelados/encerrados" do comprador1
     criados["cancelado"] = cancelado
 
     db.commit()

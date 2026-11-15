@@ -13,9 +13,10 @@ class SeedTest(TesteAPI):
 
     def test_cria_todos_os_estados_e_nao_duplica_contas(self):
         primeiro = self.popular()
-        self.assertEqual(set(primeiro), {"agendado", "em_andamento", "vendido", "encerrado_sem_lances", "cancelado"})
-        for estado, leilao_id in primeiro.items():
-            atual = self.banco.sql("SELECT estado FROM leiloes WHERE id=:id", id=leilao_id).scalar_one()
+        estados = {"agendado", "em_andamento", "vendido", "encerrado_sem_lances", "cancelado"}
+        self.assertEqual(set(primeiro), estados | {"prorrogacao_esgotada", "vencido_por_comprador1"})
+        for estado in estados:
+            atual = self.banco.sql("SELECT estado FROM leiloes WHERE id=:id", id=primeiro[estado]).scalar_one()
             self.assertEqual(atual, estado)
         self.popular()
         contas = self.banco.sql("SELECT count(*) FROM usuarios WHERE email LIKE '%@demo.local'").scalar_one()
@@ -35,4 +36,18 @@ class SeedTest(TesteAPI):
         self.assertEqual(sala["resultado"]["valor"], "80.00")
         detalhe = self.cliente().get(f"/api/leiloes/{criados['em_andamento']}").json()
         self.assertEqual(len(detalhe["item"]["fotos"]), 3)
-        self.assertEqual(detalhe["preco_atual"], "1550.00")
+        self.assertEqual(detalhe["preco_atual"], "1600.00")
+
+    def test_dados_da_fase_2(self):
+        criados = self.popular()
+        c = self.cliente()
+        c.post("/api/sessao", json={"email": "comprador1@demo.local", "senha": "demo1234"})
+        grupos = c.get("/api/minhas-participacoes").json()
+        self.assertTrue(all(grupos[g] for g in grupos), grupos)  # os quatro grupos com algo
+        self.assertIn(criados["vencido_por_comprador1"], [i["id"] for i in grupos["vencidos"]])
+        sala = self.cliente().get(f"/api/leiloes/{criados['prorrogacao_esgotada']}/espectador").json()
+        self.assertTrue(sala["prorrogacao_esgotada"])
+        self.assertEqual(sala["lance_minimo"], "4950.00")  # faixa de R$ 50
+        ref = self.cliente().get(f"/api/leiloes/{criados['agendado']}").json()["comitente"]["ref"]
+        perfil = self.cliente().get(f"/api/comitentes/{ref}").json()
+        self.assertGreaterEqual(perfil["encerrados"]["vendidos"], 2)
