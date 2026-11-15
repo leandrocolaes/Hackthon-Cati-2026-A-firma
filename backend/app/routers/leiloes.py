@@ -11,6 +11,7 @@
     GET  /api/meus-leiloes                    -> leiloes do usuario com pode_editar/pode_cancelar
     GET  /api/comitentes/{ref}                -> perfil publico do comitente (RF22)
     GET  /api/minhas-participacoes            -> leiloes em que entrei, em 4 grupos (RF27)
+    POST /api/leiloes/{id}/relistar           -> 201 {id, item_id, estado} novo leilao (RF28)
 """
 
 from typing import Literal
@@ -23,7 +24,7 @@ from app.config import Configuracoes, obter_configuracoes
 from app.db import get_db
 from app.schemas.leiloes import (Catalogo, LeilaoCriado, LeilaoCriar, LeilaoDetalhe, LeilaoEditar,
                                  ParticipanteSaida)
-from app.servicos import cancelamento, edicao, leiloes, participacoes, participantes, perfil
+from app.servicos import cancelamento, edicao, leiloes, participacoes, participantes, perfil, relistagem
 from app.sessoes import UsuarioLogado, usuario_atual, usuario_atual_sem_renovar
 
 router = APIRouter(prefix="/api", tags=["leilões"])
@@ -110,3 +111,10 @@ def minhas_participacoes(usuario: UsuarioLogado = Depends(usuario_atual_sem_reno
                          db: Session = Depends(get_db)):
     """RF27. Leitura (a tela atualiza sozinha): nao renova a sessao."""
     return participacoes.minhas(db, usuario.id)
+
+
+@router.post("/leiloes/{leilao_id}/relistar", status_code=201, response_model=LeilaoCriado)
+def relistar(leilao_id: int, dados: LeilaoCriar, usuario: UsuarioLogado = Depends(usuario_atual),
+             cfg: Configuracoes = Depends(obter_configuracoes), db: Session = Depends(get_db)):
+    """RF28: so o comitente, so de vendido/encerrado sem lances/cancelado; corpo da criacao."""
+    return relistagem.relistar(db, cfg, leilao_id, usuario.id, dados)

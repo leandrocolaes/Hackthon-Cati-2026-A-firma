@@ -8,7 +8,7 @@ import unittest
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://unused:unused@localhost/unused")
 
 from app.config import Configuracoes  # noqa: E402
-from app.regras import edicao_permitida, espera_para_lance, hard_end, impedimento, incremento, lance_minimo, novo_termino, prorrogacao_esgotada  # noqa: E402
+from app.regras import edicao_permitida, relistagem_permitida, espera_para_lance, hard_end, impedimento, incremento, lance_minimo, novo_termino, prorrogacao_esgotada  # noqa: E402
 
 CFG = Configuracoes(_env_file=None)
 T0 = datetime(2026, 11, 14, 18, 0, tzinfo=timezone.utc)
@@ -80,6 +80,12 @@ class RegrasTest(unittest.TestCase):
         self.assertFalse(edicao_permitida("agendado", T0, inicio, True))  # com lance
         for estado in ("em_andamento", "vendido", "encerrado_sem_lances", "cancelado"):
             self.assertFalse(edicao_permitida(estado, T0, inicio, False))
+
+    def test_relistagem_so_de_finalizado_ou_cancelado(self):
+        for estado in ("vendido", "encerrado_sem_lances", "cancelado"):
+            self.assertTrue(relistagem_permitida(estado))
+        for estado in ("agendado", "em_andamento"):
+            self.assertFalse(relistagem_permitida(estado))
 
     def test_impedimentos(self):
         fim = T0 + timedelta(minutes=1)

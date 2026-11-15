@@ -20,7 +20,7 @@ from app import dinheiro
 from app.config import Configuracoes
 from app.erros import ErroApi
 from app.models import FotoItem, Item, Lance, Leilao, Participante
-from app.regras import cancelamento_permitido, edicao_permitida
+from app.regras import cancelamento_permitido, edicao_permitida, relistagem_permitida
 from app.schemas.leiloes import LeilaoEditar
 from app.servicos.leiloes import gravar_fotos, nao_encontrado, validar
 from app.tempo import agora, iso_utc
@@ -92,4 +92,5 @@ def meus(db: Session, usuario_id: int) -> dict:
         "versao": l.versao,  # RF23: o formulario de edicao devolve este numero no PUT
         "pode_editar": edicao_permitida(l.estado, instante, l.inicio, n_lances > 0),
         "pode_cancelar": cancelamento_permitido(l.estado, instante, l.termino_vigente, l.lider_id is not None),
+        "pode_relistar": relistagem_permitida(l.estado),  # RF28
     } for l, nome, categoria, capa_url, n_lances, n_outros in linhas]}

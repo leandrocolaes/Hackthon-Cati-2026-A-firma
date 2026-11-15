@@ -113,3 +113,11 @@ def edicao_permitida(estado: str, instante: datetime, inicio: datetime, tem_lanc
     preco inicial, inicio e duracao ficam bloqueados.
     """
     return estado == "agendado" and instante < inicio and not tem_lances
+
+
+ESTADOS_RELISTAVEIS = ("vendido", "encerrado_sem_lances", "cancelado")
+
+
+def relistagem_permitida(estado: str) -> bool:
+    """RF28: so a partir de leilao finalizado ou cancelado; nunca agendado/em andamento."""
+    return estado in ESTADOS_RELISTAVEIS

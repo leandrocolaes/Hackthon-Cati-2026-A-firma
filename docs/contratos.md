@@ -37,7 +37,8 @@ leilao, e UUIDs identificam tentativas ou referencias opacas conforme indicado.
 | POST `/api/leiloes/1/lances` | Sessao e participacao | `{"valor":"10.00","chave":"b507dc81-a9b6-4ad7-8d1c-176f664bf9cb"}` | 201 `{"lance_id":4,"leilao_id":1,"valor":"10.00","versao":2}` |
 | POST `/api/leiloes/1/cancelar` | Sessao do comitente | — | 200 `{"id":1,"estado":"cancelado","encerrado_em":"2026-11-14T17:59:00Z","versao":1}` |
 | PUT `/api/leiloes/1` | Sessao do comitente | corpo da criacao + `"versao":1` (a lista `fotos` substitui a anterior) | 200 `{"id":1,"item_id":1,"estado":"agendado","versao":2}`; 403 edicao_nao_autorizada; 409 edicao_nao_permitida ou conflito_de_versao |
-| GET `/api/meus-leiloes` | Sessao valida | — | 200 `{"itens":[{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"agendado","preco_inicial":"10.00","preco_atual":"10.00","inicio":"...","termino_vigente":"...","total_lances":0,"participantes":0,"pode_editar":true,"pode_cancelar":true}]}` (todos os estados, mais recentes primeiro; `participantes` nao conta o comitente) |
+| GET `/api/meus-leiloes` | Sessao valida | — | 200 `{"itens":[{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"agendado","preco_inicial":"10.00","preco_atual":"10.00","inicio":"...","termino_vigente":"...","total_lances":0,"participantes":0,"versao":0,"pode_editar":true,"pode_cancelar":true,"pode_relistar":false}]}` (todos os estados, mais recentes primeiro; `participantes` nao conta o comitente) |
+| POST `/api/leiloes/1/relistar` | Sessao do comitente | mesmo corpo da criacao (novo inicio e duracao obrigatorios) | 201 `{"id":9,"item_id":9,"estado":"agendado"}` novo leilao com item novo; 403 relistagem_nao_autorizada; 409 relistagem_nao_permitida (origem agendada/em andamento); 422 como na criacao (RF28) |
 | GET `/api/minhas-participacoes` | Sessao valida (nao renova) | — | 200 `{"em_disputa":[...],"vencidos":[...],"nao_vencidos":[...],"cancelados_encerrados":[...]}`; item `{"id":1,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"vendido","preco":"105.00","termino":"...","sala_acessivel":false}` (RF27; nao inclui leiloes em que o usuario e o comitente; `encerrado_sem_lances` fica em nao_vencidos) |
 | GET `/api/comitentes/{ref}` | Publico | — | 200 `{"ref":"3f9c0a1b2c4d5e6f","nome":"Ana","ativos":[<cartao do catalogo>],"encerrados":{"vendidos":1,"sem_lances":0,"cancelados":2,"recentes":[{"id":3,"nome":"Livro","categoria":"Outros","foto_principal":null,"estado":"vendido","encerrado_em":"..."}]}}`; 404 recurso_nao_encontrado (RF22: nunca e-mail, ids de usuario, lances, vencedor ou valor final) |
 | WS `/api/leiloes/1/ws` | Sessao e participacao | handshake com cookie, sem corpo | 101 na conexao; mensagem `{"tipo":"estado_leilao","estado":<snapshot abaixo>}` |
@@ -153,9 +154,9 @@ Selecionar campo/motivo e nao devolver input, ctx, senha, hash, token ou corpo b
 | Status | Codigos previstos |
 |---|---|
 | 401 | sessao_invalida; credenciais_invalidas (mensagem sempre “e-mail ou senha inválidos”) |
-| 403 | acesso_negado; participante_ausente; cancelamento_nao_autorizado; edicao_nao_autorizada |
+| 403 | acesso_negado; participante_ausente; cancelamento_nao_autorizado; edicao_nao_autorizada; relistagem_nao_autorizada |
 | 404 | recurso_nao_encontrado |
-| 409 | email_ja_cadastrado; chave_reutilizada; leilao_fora_do_estado; leilao_encerrado; lance_do_comitente; lance_do_lider; lance_abaixo_do_minimo; cancelamento_nao_permitido; edicao_nao_permitida; conflito_de_versao; item_com_leilao_ativo |
+| 409 | email_ja_cadastrado; chave_reutilizada; leilao_fora_do_estado; leilao_encerrado; lance_do_comitente; lance_do_lider; lance_abaixo_do_minimo; cancelamento_nao_permitido; edicao_nao_permitida; conflito_de_versao; relistagem_nao_permitida; item_com_leilao_ativo |
 | 422 | entrada_invalida (formato, tipo, faixa, instante sem fuso ou dados obrigatorios) |
 | 429 | lance_muito_rapido (RF13; `detalhes.segundos_restantes`, inteiro) |
 | 503 | armazenamento_indisponivel |
