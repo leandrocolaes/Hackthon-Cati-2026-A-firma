@@ -87,6 +87,22 @@ os estados: um agendado que abre em 2 minutos, outro em 10, um em andamento com
 lances, um vendido, um encerrado sem lances e um cancelado. Rodar de novo não
 duplica as contas, só cria outro lote; rodem pouco antes da demo.
 
+Fase 2: o lote também traz um leilão já no hard end (aviso de encerramento
+definitivo, RF15), preços em várias faixas de incremento (RF14), um leilão vendido
+para o `comprador1` e participações dele nos quatro grupos de "Minhas participações"
+(RF27). O perfil público da Ana (link "Anunciado por" no detalhe) mostra ativos e
+encerrados (RF22); os encerrados podem ser relistados por ela (RF28).
+
+Roteiro rápido da fase 2:
+
+1. Catálogo: buscar "relogio", filtrar por categoria/estado/preço e copiar a URL (RF21).
+2. Abrir um leilão em andamento sem login e clicar em **Assistir sem participar** (RF25).
+3. Entrar como `comprador1` e `comprador2` em dois navegadores, dar lances alternados:
+   o superado vê "Seu lance foi superado" uma única vez (RF26); dois cliques em menos
+   de 2 s mostram "Aguarde N s" (RF13).
+4. Recarregar a página da sala: volta direto para a sala, no estado atual (RF24).
+5. Como `comitente`: editar um agendado, relistar um encerrado e abrir o próprio perfil.
+
 | Conta | Papel |
 |---|---|
 | `comitente@demo.local` | comitente dos leilões de demonstração |
@@ -357,5 +373,26 @@ ao abrir; se o leilão mudou nesse meio-tempo, o servidor responde 409
 salvar de novo. Quem já está na sala recebe a mudança na hora, com um aviso.
 
 `GET /api/meus-leiloes` lista os leilões do usuário em qualquer estado, com
-`pode_editar` e `pode_cancelar` calculados pelo servidor; a tela só mostra os botões
-quando o servidor permite, e o servidor confere de novo ao receber o pedido.
+`pode_editar`, `pode_cancelar` e `pode_relistar` calculados pelo servidor; a tela só
+mostra os botões quando o servidor permite, e o servidor confere de novo ao receber o
+pedido.
+
+## Fase 2 (resumo das regras)
+
+Contrato completo em `docs/contratos.md`; requisitos em `documento_de_requisitos_fase_2.md`.
+
+| Ref. | Regra | Onde |
+|---|---|---|
+| RF14 | Incremento mínimo por faixa do preço atual confirmado | `regras.incremento` |
+| RF15 | Hard end = término original + 10 min; sala mostra o horário e avisa no teto | `regras.hard_end`, snapshot |
+| RF13 | Um lance a cada 2 s por participante e leilão (`BID_MIN_INTERVAL_SECONDS`); 429 `lance_muito_rapido` | `servicos/lances.py` |
+| RF21 | Busca (nome, sem maiúsculas/acentos), categoria, estado, faixa de preço, 5 ordenações, filtros na URL | `GET /api/leiloes` |
+| RF22 | Perfil público por referência aleatória, sem e-mail nem ids | `GET /api/comitentes/{ref}` |
+| RF23 | Edição só de agendado, antes do início e sem lances; 409 `conflito_de_versao` | `PUT /api/leiloes/{id}` |
+| RF24 | Sala na URL (`?sala=1`); reconexão lê o snapshot sem refazer a participação | `useSala.ts` |
+| RF25 | Espectador sem login, só em andamento, snapshot público | `GET .../espectador`, WS `?modo=espectador` |
+| RF26 | Aviso de lance superado, um por usuário/leilão, só para quem está na sala | `tempo_real.py` |
+| RF27 | Minhas participações em 4 grupos | `GET /api/minhas-participacoes` |
+| RF28 | Relistagem cria leilão e item novos, sem herdar a disputa | `POST /api/leiloes/{id}/relistar` |
+
+Fotos continuam como na fase 1 (fora do escopo desta fase).

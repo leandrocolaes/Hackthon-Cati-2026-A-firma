@@ -33,10 +33,11 @@ obrigatorio com DEFAULT now(). Usuario e Sessao ja possuem criado_em.
 
 ## 3. Dados do anuncio sem copia
 
-O leilao consulta os dados do item, sem snapshot/copia nesta versao. O Nucleo
-nao oferece edicao de item. Antes de RF23/RF28 permitir editar dados de um item
-relistado, rever snapshots/versionamento para preservar o anuncio historico.
-Nao implementar edicao nem relistagem agora.
+O leilao consulta os dados do item, sem snapshot/copia nesta versao.
+Fase 2: a edicao (RF23) so altera item de leilao agendado, antes do inicio e sem
+lances, quando ainda nao ha historico a preservar. A relistagem (RF28) cria um ITEM
+NOVO para o novo leilao (copia editavel), entao o anuncio historico do leilao
+encerrado nunca muda.
 
 ## 4. Fotos
 
@@ -173,6 +174,15 @@ Lance continua exigindo sessao valida e as demais regras de elegibilidade.
 Apelido pertence ao usuario/leilao, nao ao aparelho ou sessao.
 Presenca por aba com expiracao fica para revisao futura na sala WebSocket e RF25.
 Essa interpretacao substitui a proposta anterior de presenca expiravel do guia.
+
+Fase 2: espectador (RF25) NAO cria Participante; "estar na sala naquele momento"
+para o aviso de lance superado (RF26) = ter um WebSocket de participante aberto.
+participantes.avisado_superado_em (NULL = nunca avisado) garante um aviso por
+usuario/leilao. O intervalo de 2 s entre lances (RF13) e medido por
+tentativas_lance.criado_em, gravado com o instante da decisao (apos a trava).
+
+usuarios.ref_publica (fase 2, RF22): token aleatorio unico que identifica o perfil
+publico na URL, para nao expor usuarios.id.
 
 ## 12. Agenda, versao e prorrogacoes
 
